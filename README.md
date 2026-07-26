@@ -1,5 +1,23 @@
 # vivizoo
-no plan something python
+
+## distribution
+
+Jannes: db
+Eric: frontend
+Benjamin: backend
+
+
+## architektur
+
+- halt ne db per endpoint
+
+- programm stil
+
+- pyqt
+
+- backend für pyqt
+
+## requirements
 
 Due: Sunday, 9 August 2026, 11:59 PM
 Digitaler Zwilling einer Zoo-Simulation
