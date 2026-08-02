@@ -216,3 +216,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# vivizoo database module (SQLite + WAL sidecar files)
+data/*.sqlite
+data/*.sqlite-wal
+data/*.sqlite-shm
