@@ -3,22 +3,22 @@
   "build": {
     "dockerfile": "Dockerfile"
   },
+  "overrideFeatureInstallOrder": [],
+  "remoteEnv": {
+    "VIRTUAL_ENV": "/opt/venv",
+    "PATH": "/opt/venv/bin:${containerEnv:PATH}"
+  },
   "customizations": {
     "vscode": {
       "extensions": [
-        "ms-python.python"
+        "ms-python.python",
+        "ms-python.vscode-pylance"
       ],
       "settings": {
-        // Points VS Code directly to the /opt/venv Python interpreter
         "python.defaultInterpreterPath": "/opt/venv/bin/python",
         "python.terminal.activateEnvironment": true
       }
     }
-  },
-  "containerEnv": {
-    // Ensures terminal tasks and interactive shells use /opt/venv by default
-    "VIRTUAL_ENV": "/opt/venv",
-    "PATH": "/opt/venv/bin:${containerEnv:PATH}"
   },
   "remoteUser": "vscode",
   "mounts": [
