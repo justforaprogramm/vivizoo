@@ -4,7 +4,7 @@ RUN mkdir -p /home/vscode/.ssh && chown -R vscode:vscode /home/vscode/.ssh
 
 RUN pip install --no-cache-dir pandas sqlalchemy
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get install -y --no-install-recommends \
     sshpass \
     fastfetch \
     curl \
