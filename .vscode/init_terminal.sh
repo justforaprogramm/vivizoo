@@ -8,7 +8,7 @@ fi
 # docker on system?
 if ! command -v docker &>/dev/null; then
   echo "Docker nicht gefunden! …"
-  exit 1
+  return 1
 fi
 
 echo "Docker gefunden..."
@@ -18,7 +18,7 @@ if ! command -v devpod &>/dev/null; then
   echo "Devpod nicht gefunden! …"
   echo "versuche vielleicht …"
   echo "devpod provider use docker 2>/dev/null || devpod provider add docker"
-  exit 1
+  return 1
 fi
 
 echo "Devpod gefunden..."
