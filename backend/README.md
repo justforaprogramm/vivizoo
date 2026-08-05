@@ -88,23 +88,10 @@ through `db.interface.AbstractPersistence`.
 
 ## Tests
 
-Die Tests werden **von euch geschrieben** (Teil der OOP-Aufgabe); dieses
-Modul liefert keine fertigen Tests, sondern den Rahmen. Die Erwartungen an
+Dieses Modul liefert keine fertigen Tests, sondern den Rahmen. Die Erwartungen an
 jede öffentliche Methode sind bereits als kurze `Tests:`-Blöcke in den
 Docstrings hinterlegt — sie sind die Grundlage für Unit-Tests.
 
-### Test-Framework und Ausführen
-
-```bash
-pip install pytest
-python -m pytest backend -q            # ab Projektwurzel, .venv aktivieren
-python -m pytest backend/tests -q      # nur der Testordner
-```
-
-tests werden nicht zum Lieferumfang gehören, sondern als separates Verzeichnis
-`backend/tests/` geführt (siehe Struktur unten). Ein Test gilt als bestanden,
-wenn er ohne Netzwerkzugriff und ohne echte Datei-Ressourcen auskommt
-(Ausnahme: die SQLite-in-memory-Tests der Persistenz).
 
 ### Struktur des Testordners
 
@@ -140,7 +127,7 @@ Richtlinien für die Struktur:
 * Jede Testdatei beginnt mit einem kurzen Docstring, der das Kapitel/den
   Bereich nennt (z. B. "Kapitel 2: Tiersimulation").
 
-### Was wird typischerweise getestet
+### Was wird getestet
 
 Das Backend deckt die drei OOP-Säulen der Aufgabe ab — daran orientieren sich
 die Tests:
