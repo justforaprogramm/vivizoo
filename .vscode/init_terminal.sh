@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# Prüfen, ob die Docker/Devcontainer-Indikatordateien existieren
+if [ -f "/run/.containerenv" ] || [ -f "/.dockerenv" ]; then
+    echo "Devcontainer erkannt - breche init_terminal.sh ab."
+    return 0
+fi
+
 # use bashrc
 if [ -f ~/.bashrc ]; then
     source ~/.bashrc
