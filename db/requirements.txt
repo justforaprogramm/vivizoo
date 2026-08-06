@@ -1,0 +1,8 @@
+# Dependencies of the database module.
+#
+# Install (from the repository root, inside the devcontainer):
+#     pip install -r db/requirements.txt
+#
+# SQLite itself needs no entry here -- it ships with Python (module sqlite3).
+
+SQLAlchemy>=2.0,<3.0
