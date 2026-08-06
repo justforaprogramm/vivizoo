@@ -45,9 +45,7 @@ class EventScheduler:
             self.DEFAULT_CHANCE if event_chance is None else float(event_chance)
         )
         if not 0.0 <= self.event_chance <= 1.0:
-            raise ValueError(
-                f"event_chance must be 0.0..1.0, got {event_chance}."
-            )
+            raise ValueError(f"event_chance must be 0.0..1.0, got {event_chance}.")
 
     def check(self, zoo: "object", tick: int) -> None:
         """Roll for an event and apply it if triggered.
@@ -78,8 +76,12 @@ class EventScheduler:
             animal = self._random_living_animal(zoo)
             if animal is not None:
                 animal.apply_status_effect(
-                    StatusEffect(name="Stressed", tick_interval=5,
-                                 hp_drain=1.0, remaining_ticks=40)
+                    StatusEffect(
+                        name="Stressed",
+                        tick_interval=5,
+                        hp_drain=1.0,
+                        remaining_ticks=40,
+                    )
                 )
                 zoo.logger.log(
                     "WARNING",

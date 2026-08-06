@@ -27,9 +27,7 @@ class EnvironmentFactor:
 
     WEATHERS: tuple[str, ...] = ("sun", "rain", "cloudy")
 
-    def __init__(
-        self, weather: str | None = None, temperature: float = 20.0
-    ) -> None:
+    def __init__(self, weather: str | None = None, temperature: float = 20.0) -> None:
         """Create an environment factor with a starting weather.
 
         Args:
@@ -47,9 +45,7 @@ class EnvironmentFactor:
         if weather is None:
             weather = random.choice(self.WEATHERS)
         if weather not in self.WEATHERS:
-            raise ValueError(
-                f"Unknown weather {weather!r}. Valid: {self.WEATHERS}."
-            )
+            raise ValueError(f"Unknown weather {weather!r}. Valid: {self.WEATHERS}.")
         self.weather = weather
         self.temperature = temperature
 

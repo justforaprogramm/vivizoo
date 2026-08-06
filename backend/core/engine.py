@@ -97,9 +97,7 @@ class SimulationEngine:
             return
         self._paused = False
         self._stop_requested = False
-        self._running_thread = threading.Thread(
-            target=self._run_loop, daemon=True
-        )
+        self._running_thread = threading.Thread(target=self._run_loop, daemon=True)
         self._running_thread.start()
 
     def pause(self) -> None:
@@ -291,9 +289,7 @@ class SimulationEngine:
         Tests:
             1. Returning pending entries resets the buffer.
         """
-        return [
-            entry.to_dict() for entry in self._logger.drain()
-        ]
+        return [entry.to_dict() for entry in self._logger.drain()]
 
     def execute_action(self, action_name: str, **kwargs: object) -> dict:
         """Run a player action and return its structured result.
@@ -341,5 +337,6 @@ class SimulationEngine:
             TimeOfDay: The active phase.
         """
         slot = (tick % TICKS_PER_DAY) // (TICKS_PER_DAY // 4)
-        return [TimeOfDay.MORNING, TimeOfDay.NOON,
-                TimeOfDay.EVENING, TimeOfDay.NIGHT][slot]
+        return [TimeOfDay.MORNING, TimeOfDay.NOON, TimeOfDay.EVENING, TimeOfDay.NIGHT][
+            slot
+        ]

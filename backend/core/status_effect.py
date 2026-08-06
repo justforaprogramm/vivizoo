@@ -56,9 +56,7 @@ class StatusEffect:
             2. ``StatusEffect("Hungry", 5, 2.0, 0)`` is already expired.
         """
         if tick_interval < 1:
-            raise ValueError(
-                f"tick_interval must be positive, got {tick_interval}."
-            )
+            raise ValueError(f"tick_interval must be positive, got {tick_interval}.")
         self.name = name
         self.tick_interval = tick_interval
         self.hp_drain = hp_drain

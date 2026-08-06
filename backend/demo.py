@@ -92,8 +92,10 @@ def run_demo(use_db: bool) -> int:
         engine.tick()
 
     state = engine.get_game_state()
-    print(f"\n    tick={state['system']['tick_count']} "
-          f"phase={state['system']['time_of_day']}")
+    print(
+        f"\n    tick={state['system']['tick_count']} "
+        f"phase={state['system']['time_of_day']}"
+    )
 
     # --- 2. God-mode actions ---------------------------------------
     print("\n[2] Player buys food and feeds all animals:")
@@ -106,14 +108,20 @@ def run_demo(use_db: bool) -> int:
     animal_id = zoo.all_animals()[0].animal_id
     info = engine.get_entity_info(animal_id)
     print(f"\n[3] Hover info for {animal_id}:")
-    print(f"    {info['name']} (hp={info['hp']}, hunger={info['hunger']}, "
-          f"welfare={info['welfare']})")
+    print(
+        f"    {info['name']} (hp={info['hp']}, hunger={info['hunger']}, "
+        f"welfare={info['welfare']})"
+    )
 
     # --- 4. Inventory + money ---------------------------------------
     final = engine.get_game_state()
     print("\n[4] Inventory:", final["inventory"])
-    print("    Money:", final["finances"]["money"],
-          "| Animals on map:", len(final["animals_on_map"]))
+    print(
+        "    Money:",
+        final["finances"]["money"],
+        "| Animals on map:",
+        len(final["animals_on_map"]),
+    )
 
     # --- 5. Persistence (optional) ----------------------------------
     if persistence is not None:
@@ -126,8 +134,10 @@ def run_demo(use_db: bool) -> int:
         print(f"\n[5] Wrote a day summary; chart rows now: {len(stats)}")
         if stats:
             row = stats[0]
-            print(f"    day {row['day_id']}: visitors={row['total_visitors']}, "
-                  f"profit={row['profit_loss']}, welfare={row['avg_animal_welfare']}")
+            print(
+                f"    day {row['day_id']}: visitors={row['total_visitors']}, "
+                f"profit={row['profit_loss']}, welfare={row['avg_animal_welfare']}"
+            )
         storage.close()
 
     print("\n" + "=" * 66)

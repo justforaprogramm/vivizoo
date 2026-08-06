@@ -183,8 +183,7 @@ class ActionHandler:
         cleared = bool(animal.status_effects and animal.status_effects.pop())
         return ActionResult(
             True,
-            f"Healed {animal.name}."
-            + (" Status effect cleared." if cleared else ""),
+            f"Healed {animal.name}." + (" Status effect cleared." if cleared else ""),
             chat_entries=[{"type": "SUCCESS", "text": f"{animal.name} healed."}],
         )
 
@@ -248,9 +247,7 @@ class ActionHandler:
             enclosure = self._zoo.enclosures[0]
         if enclosure.is_full():
             return ActionResult(False, f"{enclosure.name} is full.")
-        animal = self._zoo.add_animal(
-            species, name or f"New {species}", enclosure
-        )
+        animal = self._zoo.add_animal(species, name or f"New {species}", enclosure)
         return ActionResult(
             True,
             f"Bought {animal.name} for {price:.2f} into {enclosure.name}.",
