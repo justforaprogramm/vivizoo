@@ -35,8 +35,8 @@ from PyQt6.QtGui import QBrush, QPen, QColor, QFont
 from frontend.core.constants import SPECIES_COLORS, C_BORDER, C_RED, Z_ANIMALS
 
 SPRITE_SIZE = 18
-SPRITE_SIZE_HOVERED = 21          # Size on hover (pop effect)
-HOVER_PEN_WIDTH = 2               # Glow ring width on hover
+SPRITE_SIZE_HOVERED = 21  # Size on hover (pop effect)
+HOVER_PEN_WIDTH = 2  # Glow ring width on hover
 
 
 class AnimalSprite(QGraphicsEllipseItem):
@@ -52,6 +52,7 @@ class AnimalSprite(QGraphicsEllipseItem):
         - test_dead_state_changes_color: Call update_state(x, y, is_dead=True).
           Verify brush colour is gray and border is red.
     """
+
     def __init__(
         self,
         animal_id: str,
@@ -62,8 +63,11 @@ class AnimalSprite(QGraphicsEllipseItem):
         parent: Optional[QGraphicsItem] = None,
     ) -> None:
         super().__init__(
-            x - SPRITE_SIZE / 2, y - SPRITE_SIZE / 2,
-            SPRITE_SIZE, SPRITE_SIZE, parent,
+            x - SPRITE_SIZE / 2,
+            y - SPRITE_SIZE / 2,
+            SPRITE_SIZE,
+            SPRITE_SIZE,
+            parent,
         )
         self._animal_id = animal_id
         self._species = species
@@ -173,8 +177,12 @@ class AnimalSprite(QGraphicsEllipseItem):
         if not self._is_dead:
             self._hovered = True
             half = SPRITE_SIZE_HOVERED / 2
-            self.setRect(self._cx - half, self._cy - half,
-                          SPRITE_SIZE_HOVERED, SPRITE_SIZE_HOVERED)
+            self.setRect(
+                self._cx - half,
+                self._cy - half,
+                SPRITE_SIZE_HOVERED,
+                SPRITE_SIZE_HOVERED,
+            )
             self.setPen(QPen(QColor("#ffffff"), HOVER_PEN_WIDTH))
             rect = self._label.boundingRect()
             self._label.setPos(
@@ -198,8 +206,7 @@ class AnimalSprite(QGraphicsEllipseItem):
         if not self._is_dead:
             self._hovered = False
             half = SPRITE_SIZE / 2
-            self.setRect(self._cx - half, self._cy - half,
-                          SPRITE_SIZE, SPRITE_SIZE)
+            self.setRect(self._cx - half, self._cy - half, SPRITE_SIZE, SPRITE_SIZE)
             self.setPen(QPen(QColor(C_BORDER), 1))
             rect = self._label.boundingRect()
             self._label.setPos(

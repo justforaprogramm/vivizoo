@@ -33,6 +33,7 @@ class FrontendController:
         - test_delegates_to_engine_correctly: Mock an engine with a known
           state dict; verify get_state() returns the mock data.
     """
+
     def __init__(self, engine: Any = None) -> None:
         """Wrap a SimulationEngine instance.
 

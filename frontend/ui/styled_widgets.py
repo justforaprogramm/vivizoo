@@ -20,10 +20,16 @@ from PyQt6.QtGui import QCursor
 
 try:
     from frontend.core.constants import (
-        C_BG_CARD, C_BG_CARD2,
-        C_ACCENT, C_ACCENT2, C_ACCENT_GLOW,
-        C_RED, C_RED_GLOW,
-        C_BORDER, C_TEXT, C_TEXT_DIM,
+        C_BG_CARD,
+        C_BG_CARD2,
+        C_ACCENT,
+        C_ACCENT2,
+        C_ACCENT_GLOW,
+        C_RED,
+        C_RED_GLOW,
+        C_BORDER,
+        C_TEXT,
+        C_TEXT_DIM,
     )
 except ImportError:
     C_BG_CARD = C_BG_CARD2 = "#1c2333"

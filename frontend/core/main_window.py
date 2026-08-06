@@ -4,30 +4,59 @@ ZooMainWindow — top-level PyQt6 window for the vivizoo simulation.
 Phase 1: Core prototype with map, action panel, shop, chatlog, and entity-info hover.
 Tier 1: Gradient theme, drop shadows, button glow, enclosure gradients.
 Tier 2: Hover highlight on sprites, floating score popups, toolbar icon enhancements.
-Tier 4: Styled top toolbar with glass-morphism stat chips and bottom status bar badges.
 
 Tests:
-    - test_tick_loop_polls_state, test_hover_updates_entity_info_panel,
-      test_dispatch_routes_to_controller, test_map_click_deselects
+    - test_tick_loop_polls_state: Mock controller; trigger _tick();
+      verify controller.get_state() was called.
+    - test_hover_updates_entity_info_panel: Trigger _on_hover("a_01");
+      verify controller.get_entity_info() called and panel updated.
+    - test_dispatch_routes_to_controller: Trigger _dispatch("feed_all");
+      verify controller.execute_action("feed_all") called.
+    - test_map_click_deselects: Select an animal, trigger _on_map_clicked();
+      verify selection cleared and info panel shows placeholder.
 """
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from PyQt6.QtWidgets import (
-    QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
-    QTabWidget, QLabel, QPushButton, QGraphicsDropShadowEffect,
-    QFrame, QSizePolicy, QSpacerItem,
+    QMainWindow,
+    QWidget,
+    QHBoxLayout,
+    QVBoxLayout,
+    QTabWidget,
+    QLabel,
+    QPushButton,
+    QGraphicsDropShadowEffect,
+    QFrame,
+    QSizePolicy,
+    QSpacerItem,
 )
 from PyQt6.QtCore import QTimer, Qt, QPropertyAnimation, QEasingCurve
-from PyQt6.QtGui import QAction, QColor, QFont
+from PyQt6.QtGui import QAction, QColor
 
 from frontend.core.constants import (
-    WINDOW_TITLE, WINDOW_W, WINDOW_H, TICK_MS,
-    C_TEXT, C_TEXT_DIM, C_BG_PANEL, C_BG_PANEL2, C_BG_CARD, C_BG_CARD2,
-    C_GOLD, C_GOLD_GLOW, C_RED, C_RED_GLOW, C_ACCENT, C_ACCENT2, C_ACCENT_GLOW,
-    C_BORDER, SHADOW_BLUR, SHADOW_OFFSET,
+    WINDOW_TITLE,
+    WINDOW_W,
+    WINDOW_H,
+    TICK_MS,
+    C_TEXT,
+    C_TEXT_DIM,
+    C_BG_PANEL,
+    C_BG_PANEL2,
+    C_BG_CARD,
+    C_BG_CARD2,
+    C_GOLD,
+    C_GOLD_GLOW,
+    C_RED,
+    C_RED_GLOW,
+    C_ACCENT,
+    C_ACCENT2,
+    C_ACCENT_GLOW,
+    C_BORDER,
+    SHADOW_BLUR,
+    SHADOW_OFFSET,
     ENCLOSURE_DEFS,
 )
 from frontend.core.frontend_controller import FrontendController
@@ -40,11 +69,21 @@ from frontend.ui.action_panel import ActionPanel
 from frontend.ui.shop_panel import ShopPanel
 from frontend.ui.event_banner import EventBanner
 
+if TYPE_CHECKING:
+    from frontend.ui.animal_sprite import AnimalSprite
+    from frontend.ui.lion_sprite import AsciiLionSprite
+    from frontend.ui.enclosure_item import EnclosureItem
 
 # ── Drop-shadow helper ─────────────────────────────────────────────────────
 
-def _drop_shadow(widget: QWidget, blur: int = SHADOW_BLUR,
-                 dx: int = SHADOW_OFFSET[0], dy: int = SHADOW_OFFSET[1]) -> None:
+
+def _drop_shadow(
+    widget: QWidget,
+    blur: int = SHADOW_BLUR,
+    dx: int = SHADOW_OFFSET[0],
+    dy: int = SHADOW_OFFSET[1],
+) -> None:
+    """Apply a soft drop-shadow effect to a widget for game-like depth."""
     shadow = QGraphicsDropShadowEffect()
     shadow.setBlurRadius(blur)
     shadow.setOffset(dx, dy)
@@ -52,7 +91,7 @@ def _drop_shadow(widget: QWidget, blur: int = SHADOW_BLUR,
     widget.setGraphicsEffect(shadow)
 
 
-# ── Styled "chip" badge helper ─────────────────────────────────────────────
+# ── StatusChip — glass-morphism pill badge ──────────────────────────────────
 
 _CHIP_QSS = (
     "QFrame {"
@@ -63,80 +102,69 @@ _CHIP_QSS = (
     "}"
 )
 
-def _make_chip(icon_text: str, value_text: str = "",
-               accent_color: str = C_TEXT) -> QFrame:
-    """Create a glass-morphism pill badge.
 
-    Args:
-        icon_text: Emoji + label prefix (e.g. "💰 Budget").
-        value_text: The dynamic value portion (e.g. "5.000 €").
-        accent_color: Hex colour for the value text.
+class StatusChip(QFrame):
+    """Glass-morphism pill badge with an icon label and a dynamic value label.
 
-    Returns:
-        A styled QFrame containing a horizontal layout with icon and value labels.
+    Replaces the old _make_chip() / _update_chip() function pair with
+    a proper QFrame subclass so all attributes are public and pylint
+    does not flag protected-access.
+
+    Tests:
+        - test_set_value_updates_label: Call set_value("42"); verify
+          the value label text equals "42".
+        - test_set_accent_changes_colour: Call set_accent("#ff0000");
+          verify value label stylesheet contains #ff0000.
     """
-    chip = QFrame()
-    chip.setStyleSheet(_CHIP_QSS)
-    lay = QHBoxLayout(chip)
-    lay.setContentsMargins(0, 0, 0, 0)
-    lay.setSpacing(5)
 
-    icon_lbl = QLabel(icon_text)
-    icon_lbl.setStyleSheet(
-        f"color: {C_TEXT_DIM}; background: transparent; border: none; "
-        "font-size: 11px; font-weight: 500;"
-    )
-    lay.addWidget(icon_lbl)
+    def __init__(
+        self,
+        icon_text: str = "",
+        value_text: str = "",
+        accent_color: str = C_TEXT,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self.setStyleSheet(_CHIP_QSS)
 
-    val_lbl = QLabel(value_text)
-    val_lbl.setObjectName("chip_value")
-    val_lbl.setStyleSheet(
-        f"color: {accent_color}; background: transparent; border: none; "
-        "font-size: 11px; font-weight: 700;"
-    )
-    lay.addWidget(val_lbl)
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(5)
 
-    # Store reference for updating
-    chip._val_lbl = val_lbl
-    chip._accent = accent_color
-    return chip
+        self.icon_label = QLabel(icon_text)
+        self.icon_label.setStyleSheet(
+            f"color: {C_TEXT_DIM}; background: transparent; border: none; "
+            "font-size: 11px; font-weight: 500;"
+        )
+        lay.addWidget(self.icon_label)
 
+        self.value_label = QLabel(value_text)
+        self.value_label.setStyleSheet(
+            f"color: {accent_color}; background: transparent; border: none; "
+            "font-size: 11px; font-weight: 700;"
+        )
+        lay.addWidget(self.value_label)
 
-def _update_chip(chip: QFrame, new_value: str, new_accent: str | None = None) -> None:
-    """Update a chip's value label text and optional accent colour.
+        self._accent = accent_color
 
-    Args:
-        chip: The QFrame returned by _make_chip.
-        new_value: New value text to display.
-        new_accent: Optional new colour hex string.
-    """
-    if new_accent is not None:
-        chip._accent = new_accent
-    chip._val_lbl.setText(new_value)
-    chip._val_lbl.setStyleSheet(
-        f"color: {chip._accent}; background: transparent; border: none; "
-        "font-size: 11px; font-weight: 700;"
-    )
+    def set_value(self, text: str) -> None:
+        """Update the displayed value text."""
+        self.value_label.setText(text)
+
+    def set_accent(self, color: str) -> None:
+        """Change the accent colour of the value text."""
+        self._accent = color
+        self.value_label.setStyleSheet(
+            f"color: {color}; background: transparent; border: none; "
+            "font-size: 11px; font-weight: 700;"
+        )
 
 
 # ── Main Window ─────────────────────────────────────────────────────────────
 
+
 class ZooMainWindow(QMainWindow):
-    """Top-level window with custom toolbar and status bar replacements.
-
-    Tier 4 replaces the native QToolBar (top) and QStatusBar (bottom)
-    with custom QFrame-based bars containing glass-morphism chip badges.
-
-    Tests:
-        - test_tick_loop_polls_state: Mock controller; trigger _tick();
-          verify controller.get_state() was called.
-        - test_hover_updates_entity_info_panel: Trigger _on_hover("a_01");
-          verify controller.get_entity_info() called and panel updated.
-        - test_dispatch_routes_to_controller: Trigger _dispatch("feed_all");
-          verify controller.execute_action("feed_all") called.
-        - test_map_click_deselects: Select animal, trigger _on_map_clicked();
-          verify selection cleared and info panel shows placeholder.
-    """
+    """Top-level window with custom toolbar and status bar replacements."""
 
     def __init__(self, controller: FrontendController) -> None:
         super().__init__()
@@ -144,6 +172,8 @@ class ZooMainWindow(QMainWindow):
         self._selected_animal_id: Optional[str] = None
         self._selected_enclosure_id: Optional[str] = None
         self._paused = False
+        self._score_anim: Optional[QPropertyAnimation] = None
+        self._last_action_msg: Optional[str] = None
 
         self.setWindowTitle(WINDOW_TITLE)
         self.setFixedSize(WINDOW_W, WINDOW_H)
@@ -158,7 +188,7 @@ class ZooMainWindow(QMainWindow):
     # ── UI Construction ────────────────────────────────────────────────────
 
     def _build_ui(self) -> None:
-        # ── Menu bar (native, minimal) ──────────────────────────────────
+        # ── Menu bar ────────────────────────────────────────────────────
         file_menu = self.menuBar().addMenu("Datei")
         file_menu.addAction(QAction("Beenden", self, triggered=self.close))
 
@@ -169,7 +199,7 @@ class ZooMainWindow(QMainWindow):
         root.setContentsMargins(8, 8, 8, 8)
         root.setSpacing(8)
 
-        # ═══ TOP BAR — custom toolbar replacement ═══════════════════════
+        # ═══ TOP BAR ════════════════════════════════════════════════════
         top_bar = QFrame()
         top_bar.setObjectName("top_bar")
         top_bar.setFixedHeight(30)
@@ -185,79 +215,51 @@ class ZooMainWindow(QMainWindow):
         top_lay.setContentsMargins(10, 2, 10, 2)
         top_lay.setSpacing(8)
 
-        # Day chip
-        self._chip_day = _make_chip("📅 Tag", "1")
+        self._chip_day = StatusChip("📅 Tag", "1")
         top_lay.addWidget(self._chip_day)
 
-        # Pause button
-        self._btn_pause = QPushButton("⏸ Pause")
-        self._btn_pause.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._btn_pause.setFixedHeight(28)
-        self._btn_pause.setStyleSheet(
-            f"QPushButton {{"
-            f"  background: qlineargradient(x1:0,y1:0,x2:0,y2:1,"
-            f"    stop:0 {C_ACCENT_GLOW}, stop:1 {C_ACCENT});"
-            f"  border: 1px solid {C_ACCENT_GLOW}; color: #fff; border-radius: 6px;"
-            f"  padding: 3px 12px; font-weight: bold; font-size: 11px;"
-            f"}}"
-            f"QPushButton:hover {{"
-            f"  background: qlineargradient(x1:0,y1:0,x2:0,y2:1,"
-            f"    stop:0 {C_ACCENT}, stop:1 {C_ACCENT2});"
-            f"  border: 2px solid #fff;"
-            f"}}"
-        )
-        self._btn_pause.clicked.connect(self._toggle_pause)
+        self._btn_pause = self._make_pause_button()
         top_lay.addWidget(self._btn_pause)
 
-        # Spacer ─────────────────────────────────────────────────────────
-        top_lay.addSpacerItem(QSpacerItem(0, 0, QSizePolicy.Policy.Expanding,
-                                           QSizePolicy.Policy.Minimum))
+        top_lay.addSpacerItem(
+            QSpacerItem(0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        )
 
-        # Budget chip
-        self._chip_budget = _make_chip("💰", "0 €", C_GOLD_GLOW)
+        self._chip_budget = StatusChip("💰", "0 €", C_GOLD_GLOW)
         top_lay.addWidget(self._chip_budget)
 
-        # Reputation chip
-        self._chip_rep = _make_chip("⭐", "0", C_GOLD_GLOW)
+        self._chip_rep = StatusChip("⭐", "0", C_GOLD_GLOW)
         top_lay.addWidget(self._chip_rep)
 
-        # Happiness chip
-        self._chip_happy = _make_chip("😊", "0%", C_ACCENT_GLOW)
+        self._chip_happy = StatusChip("😊", "0%", C_ACCENT_GLOW)
         top_lay.addWidget(self._chip_happy)
 
-        # Zoo open/closed chip
-        self._chip_open = _make_chip("🔓", "OFFEN", C_ACCENT_GLOW)
+        self._chip_open = StatusChip("🔓", "OFFEN", C_ACCENT_GLOW)
         top_lay.addWidget(self._chip_open)
 
-        # Speed indicator
-        self._chip_speed = _make_chip("🏃", "1×")
+        self._chip_speed = StatusChip("🏃", "1×")
         top_lay.addWidget(self._chip_speed)
 
         root.addWidget(top_bar)
 
-        # ═══ MIDDLE: Map + right panels ═════════════════════════════════
+        # ═══ MIDDLE: Map + right panels ═══════════════════════════════════
         body = QHBoxLayout()
         body.setSpacing(8)
 
-        # Left: map
         self._scene = ZooScene()
         self._view = ZooGraphicsView(self._scene)
         body.addWidget(self._view, stretch=3)
 
-        # Right column
         right_col = QVBoxLayout()
         right_col.setSpacing(8)
 
         self._tabs = QTabWidget()
         self._tabs.setMaximumWidth(420)
         self._tabs.setMinimumWidth(360)
-        self._tabs.setSizePolicy(
-            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        self._tabs.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
 
         self._action_panel = ActionPanel()
         self._shop_panel = ShopPanel()
-
-        # Panels go directly in tabs — QTabWidget pane QSS handles dark bg
         self._tabs.addTab(self._action_panel, "🎮 Aktionen")
         self._tabs.addTab(self._shop_panel, "🛒 Shop")
         right_col.addWidget(self._tabs)
@@ -271,7 +273,6 @@ class ZooMainWindow(QMainWindow):
         self._event_banner = EventBanner()
         right_col.addWidget(self._event_banner)
 
-        # Wrap right column in a widget for body layout
         right_w = QWidget()
         right_w.setLayout(right_col)
         body.addWidget(right_w, stretch=1)
@@ -284,7 +285,7 @@ class ZooMainWindow(QMainWindow):
         _drop_shadow(self._entity_info)
         _drop_shadow(self._chatlog)
 
-        # ═══ BOTTOM BAR — custom status bar replacement ═════════════════
+        # ═══ BOTTOM BAR ═══════════════════════════════════════════════════
         self._bot_bar = QFrame()
         self._bot_bar.setObjectName("bot_bar")
         self._bot_bar.setFixedHeight(30)
@@ -300,7 +301,6 @@ class ZooMainWindow(QMainWindow):
         bot_lay.setContentsMargins(10, 2, 10, 2)
         bot_lay.setSpacing(8)
 
-        # Status message (left)
         self._lbl_status = QLabel("🟢 Bereit")
         self._lbl_status.setStyleSheet(
             f"color: {C_TEXT}; background: transparent; border: none; "
@@ -308,24 +308,20 @@ class ZooMainWindow(QMainWindow):
         )
         bot_lay.addWidget(self._lbl_status)
 
-        # Spacer ─────────────────────────────────────────────────────────
-        bot_lay.addSpacerItem(QSpacerItem(0, 0, QSizePolicy.Policy.Expanding,
-                                           QSizePolicy.Policy.Minimum))
+        bot_lay.addSpacerItem(
+            QSpacerItem(0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        )
 
-        # Animals chip (alive / dead)
-        self._chip_animals = _make_chip("🐾 Tiere", "0 / 0 tot", C_ACCENT_GLOW)
+        self._chip_animals = StatusChip("🐾 Tiere", "0 / 0 tot", C_ACCENT_GLOW)
         bot_lay.addWidget(self._chip_animals)
 
-        # Visitors chip
-        self._chip_visitors = _make_chip("👥 Besucher", "0", C_GOLD_GLOW)
+        self._chip_visitors = StatusChip("👥 Besucher", "0", C_GOLD_GLOW)
         bot_lay.addWidget(self._chip_visitors)
 
-        # Enclosures chip
-        self._chip_enclosures = _make_chip("🏠 Gehege", "0")
+        self._chip_enclosures = StatusChip("🏠 Gehege", "0")
         bot_lay.addWidget(self._chip_enclosures)
 
-        # Last action message chip (rightmost)
-        self._chip_action = _make_chip("📋", "—", C_TEXT_DIM)
+        self._chip_action = StatusChip("📋", "—", C_TEXT_DIM)
         bot_lay.addWidget(self._chip_action)
 
         root.addWidget(self._bot_bar)
@@ -336,17 +332,40 @@ class ZooMainWindow(QMainWindow):
         self._score_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._score_label.hide()
 
+    def _make_pause_button(self) -> QPushButton:
+        """Create the styled pause/resume button."""
+        btn = QPushButton("⏸ Pause")
+        btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn.setFixedHeight(28)
+        btn.setStyleSheet(
+            f"QPushButton {{"
+            f"  background: qlineargradient(x1:0,y1:0,x2:0,y2:1,"
+            f"    stop:0 {C_ACCENT_GLOW}, stop:1 {C_ACCENT});"
+            f"  border: 1px solid {C_ACCENT_GLOW}; color: #fff; border-radius: 6px;"
+            f"  padding: 3px 12px; font-weight: bold; font-size: 11px;"
+            f"}}"
+            f"QPushButton:hover {{"
+            f"  background: qlineargradient(x1:0,y1:0,x2:0,y2:1,"
+            f"    stop:0 {C_ACCENT}, stop:1 {C_ACCENT2});"
+            f"  border: 2px solid #fff;"
+            f"}}"
+        )
+        btn.clicked.connect(self._toggle_pause)
+        return btn
+
     # ── Signal Wiring ──────────────────────────────────────────────────────
 
     def _connect_signals(self) -> None:
-        for enc in self._scene._enclosures.values():
+        for enc in self._scene.enclosures.values():
             enc.set_click_callback(self._on_enclosure_selected)
         self._view.map_clicked.connect(self._on_map_clicked)
         self._action_panel.action_triggered.connect(self._dispatch)
         self._shop_panel.buy_food.connect(
-            lambda ft, amt: self._dispatch("buy_food", type=ft, amount=amt))
+            lambda ft, amt: self._dispatch("buy_food", type=ft, amount=amt)
+        )
         self._shop_panel.buy_animal.connect(
-            lambda sp: self._dispatch("buy_animal", species=sp))
+            lambda sp: self._dispatch("buy_animal", species=sp)
+        )
         self._wire_sprite_callbacks()
 
     # ── Tick Loop ──────────────────────────────────────────────────────────
@@ -366,7 +385,7 @@ class ZooMainWindow(QMainWindow):
     # ── Update Helpers ─────────────────────────────────────────────────────
 
     def _wire_sprite_callbacks(self) -> None:
-        for sprite in self._scene._animals.values():
+        for sprite in self._scene.animals.values():
             sprite.set_hover_callback(self._on_hover)
             sprite.set_unhover_callback(self._on_unhover)
 
@@ -383,64 +402,63 @@ class ZooMainWindow(QMainWindow):
         animals = state.get("animals_on_map", [])
         visitors = state.get("visitors_on_map", [])
 
-        # ── Top bar chips ─────────────────────────────────────────────
         ticks = system.get("tick_count", 0)
         day = max(1, ticks // 480 + 1) if ticks > 0 else 1
-        _update_chip(self._chip_day, str(day))
+        self._chip_day.set_value(str(day))
 
         money = finances.get("money", 0)
-        # Budget colour: green when rich, gold when medium, red when broke
         if money >= 10_000:
-            budget_accent = C_ACCENT_GLOW
+            self._chip_budget.set_accent(C_ACCENT_GLOW)
         elif money >= 2_000:
-            budget_accent = C_GOLD_GLOW
+            self._chip_budget.set_accent(C_GOLD_GLOW)
         else:
-            budget_accent = C_RED_GLOW
-        _update_chip(self._chip_budget, f"{money:,.0f} €", budget_accent)
+            self._chip_budget.set_accent(C_RED_GLOW)
+        self._chip_budget.set_value(f"{money:,.0f} €")
 
         rep = finances.get("reputation", 0)
-        _update_chip(self._chip_rep, str(rep))
+        self._chip_rep.set_value(str(rep))
 
         happy = finances.get("zoo_happiness", 0)
         if happy >= 70:
-            happy_accent = C_ACCENT_GLOW
+            self._chip_happy.set_accent(C_ACCENT_GLOW)
         elif happy >= 30:
-            happy_accent = C_GOLD_GLOW
+            self._chip_happy.set_accent(C_GOLD_GLOW)
         else:
-            happy_accent = C_RED_GLOW
-        _update_chip(self._chip_happy, f"{happy}%", happy_accent)
+            self._chip_happy.set_accent(C_RED_GLOW)
+        self._chip_happy.set_value(f"{happy}%")
 
         zoo_open = system.get("zoo_open", True)
         if zoo_open:
-            _update_chip(self._chip_open, "OFFEN", C_ACCENT_GLOW)
-            self._chip_open.findChild(QLabel).setText("🔓")
+            self._chip_open.set_accent(C_ACCENT_GLOW)
+            self._chip_open.set_value("OFFEN")
+            self._chip_open.icon_label.setText("🔓")
         else:
-            _update_chip(self._chip_open, "GESCHL.", C_RED_GLOW)
-            self._chip_open.findChild(QLabel).setText("🔒")
+            self._chip_open.set_accent(C_RED_GLOW)
+            self._chip_open.set_value("GESCHL.")
+            self._chip_open.icon_label.setText("🔒")
 
-        # ── Bottom bar badges ──────────────────────────────────────────
         alive = sum(1 for a in animals if not a.get("is_dead"))
         dead = sum(1 for a in animals if a.get("is_dead"))
         if dead > 0:
-            animals_accent = C_GOLD_GLOW
+            self._chip_animals.set_accent(C_GOLD_GLOW)
         elif alive == 0:
-            animals_accent = C_RED_GLOW
+            self._chip_animals.set_accent(C_RED_GLOW)
         else:
-            animals_accent = C_ACCENT_GLOW
-        _update_chip(self._chip_animals, f"{alive} / {dead} tot", animals_accent)
+            self._chip_animals.set_accent(C_ACCENT_GLOW)
+        self._chip_animals.set_value(f"{alive} / {dead} tot")
 
         vcount = len(visitors)
-        _update_chip(self._chip_visitors, str(vcount))
+        self._chip_visitors.set_value(str(vcount))
 
-        _update_chip(self._chip_enclosures, str(len(ENCLOSURE_DEFS)))
+        self._chip_enclosures.set_value(str(len(ENCLOSURE_DEFS)))
 
-        # Keep the initial status message unless overridden by an action
-        if not hasattr(self, '_last_action_msg') or self._last_action_msg is None:
+        if self._last_action_msg is None:
             self._lbl_status.setText(f"🟢 Tag {day} — {alive} Tiere, {vcount} Besucher")
 
     def _update_panels(self, state: dict) -> None:
         self._action_panel.update_state(
-            state, self._selected_animal_id, self._selected_enclosure_id)
+            state, self._selected_animal_id, self._selected_enclosure_id
+        )
         self._shop_panel.update_state(state)
 
     # ── Hover / Click ──────────────────────────────────────────────────────
@@ -462,7 +480,13 @@ class ZooMainWindow(QMainWindow):
         if state:
             self._update_panels(state)
 
-    def _on_map_clicked(self, x: float, y: float) -> None:
+    def _on_map_clicked(self, _x: float, _y: float) -> None:
+        """Deselect on empty map click.
+
+        Args:
+            _x: Unused — required by signal signature.
+            _y: Unused — required by signal signature.
+        """
         self._selected_animal_id = None
         self._selected_enclosure_id = None
         self._entity_info.show_entity(None)
@@ -477,42 +501,34 @@ class ZooMainWindow(QMainWindow):
         msg = result.get("message", "")
         success = result.get("success", False)
 
-        # Update action chip in bottom bar
         icon = "✅" if success else "❌"
-        _update_chip(self._chip_action, f"{icon} {msg}" if msg else f"{icon} {action}")
+        self._chip_action.set_value(f"{icon} {msg}" if msg else f"{icon} {action}")
 
-        # Flash status label
-        self._lbl_status.setText(f"{'✅' if success else '❌'} {msg}" if msg else action)
+        self._lbl_status.setText(
+            f"{'✅' if success else '❌'} {msg}" if msg else action
+        )
         self._last_action_msg = msg if msg else None
 
         entries = result.get("chat_entries", [])
         if entries:
             self._chatlog.append_messages(entries)
 
-        # Tier 2: Show floating score popup on success
         if success:
             self._show_score_popup(action, msg)
 
     # ── Tier 2: Floating Score Popup ───────────────────────────────────────
 
     def _show_score_popup(self, action: str, message: str) -> None:
-        """Show a floating text overlay that fades out after 2 seconds.
-
-        The text is positioned over the zoo map viewport and auto-fades.
-
-        Args:
-            action: The action name (determines text / colour).
-            message: Result message to extract amount from.
-        """
-        colour = C_GOLD_GLOW
-        prefix = ""
-
+        """Show a floating text overlay that fades out after 2 seconds."""
         if action in ("buy_food", "buy_animal"):
             colour = C_RED
             prefix = "-"
         elif action in ("feed_all", "feed_one", "heal", "clean"):
             colour = C_ACCENT_GLOW
             prefix = "✓"
+        else:
+            colour = C_GOLD_GLOW
+            prefix = ""
 
         self._score_label.setText(f"{prefix} {message}" if prefix else message)
         self._score_label.setStyleSheet(
