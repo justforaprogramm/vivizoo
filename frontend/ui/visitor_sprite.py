@@ -44,6 +44,7 @@ class VisitorSprite(QGraphicsEllipseItem):
         - test_sprite_updates_position: Call update_state(100, 200); verify
           pos() ≈ (98, 198) (centred at x-2, y-2).
     """
+
     def __init__(
         self,
         visitor_id: str,
@@ -61,7 +62,11 @@ class VisitorSprite(QGraphicsEllipseItem):
         """
         half = SPRITE_SIZE / 2
         super().__init__(
-            x - half, y - half, SPRITE_SIZE, SPRITE_SIZE, parent,
+            x - half,
+            y - half,
+            SPRITE_SIZE,
+            SPRITE_SIZE,
+            parent,
         )
         self._visitor_id = visitor_id
         self._color = random.choice(_VISITOR_COLORS)

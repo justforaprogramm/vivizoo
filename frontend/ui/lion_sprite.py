@@ -68,7 +68,8 @@ def _render_lion_pixmap(color: str) -> QPixmap:
 
     target_w = 100
     scaled = image.scaled(
-        target_w, img_h,
+        target_w,
+        img_h,
         Qt.AspectRatioMode.KeepAspectRatio,
         Qt.TransformationMode.SmoothTransformation,
     )

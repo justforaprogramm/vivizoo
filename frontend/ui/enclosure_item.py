@@ -86,6 +86,7 @@ class EnclosureItem(QGraphicsRectItem):
         fill = BIOME_COLORS.get(biome, "#222222")
         # Tier 1: biome gradient fill (depth effect)
         from frontend.core.constants import BIOME_COLORS_LIGHT
+
         light = BIOME_COLORS_LIGHT.get(biome, fill)
 
         # Create gradient from lighter top to darker bottom
