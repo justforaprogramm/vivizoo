@@ -8,6 +8,19 @@
 # Backend konzeptionell sauber auf 10/10 läuft (siehe Begründungen unten).
 # Da nur Checklisten *gelockert* werden (nie verschärft), kann diese Datei
 # auch für andere Module (db/) nie die Punktzahl senken -- höchstens heben.
+#
+# ------------------------------------------------------------------
+# Ausgeschlossene Verzeichnisse (ignore)
+# ------------------------------------------------------------------
+# Beim Aufruf über den gesamten Workspace (z.B. "pylint .") würde Pylint
+# sonst auch Tool-/Meta-Ordner scannen, die nicht zum Projektcode gehören.
+# .git  – Versionshistorie, keine Pythonquellen
+# .pytest_cache – von pytest erzeugte Bytecode-/Cache-Dateien
+# .venv – die Virtual-Environment mit allen installierten Paketen
+#         (bei "pylint ." lief der dortige site-packages-Code zuvor in das
+#         Ergebnis hinein und drückte die Punktzahl massiv).
+# Diese Einträge halten den Lint auf den echten Projektcode beschränkt.
+ignore=.git,.pytest_cache,.venv
 
 [MESSAGES CONTROL]
 # ------------------------------------------------------------------
@@ -72,3 +85,4 @@ extension-pkg-allow-list=PyQt6,PyQt6.QtCore,PyQt6.QtGui,PyQt6.QtWidgets
 
 [FORMAT]
 max-line-length = 120
+
