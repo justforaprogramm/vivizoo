@@ -5,6 +5,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     fastfetch \
     curl \
     meld \
+    libgl1 \
+    libegl1 \
     && rm -rf /var/lib/apt/lists/*
 
 # SSH Setup
@@ -21,5 +23,5 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 RUN echo "source /opt/venv/bin/activate" >> /etc/bash.bashrc && \
     echo "source /opt/venv/bin/activate" >> /home/vscode/.bashrc
 
-# Install packages
-RUN pip install --no-cache-dir pandas sqlalchemy
+# Install Python packages
+RUN pip install --no-cache-dir pandas sqlalchemy PyQt6>=6.5.0
