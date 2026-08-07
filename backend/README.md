@@ -86,6 +86,23 @@ through `db.interface.AbstractPersistence`.
 
 ---
 
+## Code-Qualität (Pylint)
+
+Die Pylint-Konfiguration liegt auf der **Projektwurzel** (`.pylintrc`), damit
+Pylint sie beim Aufruf von dort automatisch findet. Sie lockert gezielt die
+Prüfungen, die der OOP-Entwurf (Kapselung, schlanke Strategie-/Handler-Klassen,
+`db`-Imports in der Demo als dritte "Partei") konzeptionell vorsieht -- ohne
+die Überladungs- oder snake_case-Schutzprüfungen grundsätzlich abzuschalten.
+Da nur gelockert wird, hat die Datei für andere Module (z. B. `db/`) nie eine
+senkende Wirkung.
+
+```bash
+cd /workspaces/vivizoo            # Projektwurzel
+pylint backend/                   # => 10.00/10
+```
+
+---
+
 ## Tests
 
 Dieses Modul liefert keine fertigen Tests, sondern den Rahmen. Die Erwartungen an

@@ -21,6 +21,7 @@ from __future__ import annotations
 import random
 from abc import ABC, abstractmethod
 
+from db.interface.enums import FoodType
 from backend.core.behaviour import (
     ACT_FEED,
     ACT_IDLE,
@@ -30,7 +31,6 @@ from backend.core.behaviour import (
     RestingBehaviour,
 )
 from backend.core.status_effect import StatusEffect
-from db.interface.enums import FoodType
 
 MAX_STAT = 100.0
 """Highest valid value for percentage stats (hunger, hp, welfare)."""
