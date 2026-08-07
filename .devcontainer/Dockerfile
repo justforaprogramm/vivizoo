@@ -5,6 +5,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     fastfetch \
     curl \
     meld \
+    libgl1 \
+    libegl1 \
+    libglib2.0-0 \
+    libdbus-1-3 \
+    libx11-xcb1 \
+    libxcb-cursor0 \
+    libxcb-xfixes0 \
+    libxkbcommon-x11-0 \
+    libxcb-icccm4 \
+    libxcb-image0 \
+    libxcb-keysyms1 \
+    libxcb-randr0 \
+    libxcb-render-util0 \
+    libxcb-shape0 \
+    libxcb-xinerama0 \
     && rm -rf /var/lib/apt/lists/*
 
 # SSH Setup
@@ -21,5 +36,5 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 RUN echo "source /opt/venv/bin/activate" >> /etc/bash.bashrc && \
     echo "source /opt/venv/bin/activate" >> /home/vscode/.bashrc
 
-# Install packages
-RUN pip install --no-cache-dir pandas sqlalchemy
+# Install Python packages
+RUN pip install --no-cache-dir pandas sqlalchemy "PyQt6>=6.5.0"
