@@ -68,7 +68,8 @@ def _render_penguin_pixmap(color: str) -> QPixmap:
 
     target_w = 120
     scaled = image.scaled(
-        target_w, img_h,
+        target_w,
+        img_h,
         Qt.AspectRatioMode.KeepAspectRatio,
         Qt.TransformationMode.SmoothTransformation,
     )

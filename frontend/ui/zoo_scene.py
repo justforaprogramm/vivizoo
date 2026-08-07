@@ -15,14 +15,26 @@ from __future__ import annotations
 import random
 from typing import Optional
 
-from PyQt6.QtWidgets import QGraphicsScene, QGraphicsRectItem, QGraphicsEllipseItem, QGraphicsItem
-from PyQt6.QtCore import Qt, QTimer, QVariantAnimation, QEasingCurve
+from PyQt6.QtWidgets import (
+    QGraphicsScene,
+    QGraphicsRectItem,
+    QGraphicsEllipseItem,
+    QGraphicsItem,
+)
+from PyQt6.QtCore import Qt, QVariantAnimation, QEasingCurve
 from PyQt6.QtGui import QBrush, QColor, QPen
 
 from frontend.core.constants import (
-    MAP_W, MAP_H, Z_OVERLAY, Z_ENCLOSURES, Z_ANIMALS, Z_VISITORS,
-    C_BG_DEEP, C_BG_MID, C_BORDER,
-    LIGHTING_DAY, LIGHTING_NIGHT, ENCLOSURE_DEFS,
+    MAP_W,
+    MAP_H,
+    Z_OVERLAY,
+    Z_VISITORS,
+    C_BG_DEEP,
+    C_BG_MID,
+    C_BORDER,
+    LIGHTING_DAY,
+    LIGHTING_NIGHT,
+    ENCLOSURE_DEFS,
 )
 from frontend.ui.animal_sprite import AnimalSprite
 from frontend.ui.lion_sprite import AsciiLionSprite
@@ -33,8 +45,8 @@ from frontend.ui.enclosure_item import EnclosureItem
 
 # ── Tier 3: Particle config ──────────────────────────────────────────────
 PARTICLE_COUNT = 30
-PARTICLE_SPEED = 0.3          # px per tick
-PARTICLE_SIZE = 2             # px
+PARTICLE_SPEED = 0.3  # px per tick
+PARTICLE_SIZE = 2  # px
 
 
 class _Particle(QGraphicsEllipseItem):
@@ -44,7 +56,7 @@ class _Particle(QGraphicsEllipseItem):
         super().__init__(x, y, PARTICLE_SIZE, PARTICLE_SIZE, parent)
         self.setBrush(QBrush(QColor(C_BORDER)))
         self.setPen(QPen(Qt.PenStyle.NoPen))
-        self.setZValue(Z_VISITORS - 1)   # below visitors, above animals
+        self.setZValue(Z_VISITORS - 1)  # below visitors, above animals
         self._drift_speed = random.uniform(0.5, 1.5) * PARTICLE_SPEED
         self._wobble_phase = random.random() * 6.28
 
@@ -89,7 +101,10 @@ class ZooScene(QGraphicsScene):
         self.setBackgroundBrush(self._build_grid_brush())
 
         # Entity dictionaries
-        self._animals: dict[str, AnimalSprite | AsciiLionSprite | AsciiPenguinSprite | AsciiGiraffeSprite] = {}
+        self._animals: dict[
+            str,
+            AnimalSprite | AsciiLionSprite | AsciiPenguinSprite | AsciiGiraffeSprite,
+        ] = {}
         self._visitors: dict[str, VisitorSprite] = {}
         self._enclosures: dict[str, EnclosureItem] = {}
 
@@ -124,6 +139,7 @@ class ZooScene(QGraphicsScene):
     def _build_grid_brush() -> QBrush:
         """Create a subtle dot-grid pattern for game-map aesthetic."""
         from PyQt6.QtGui import QImage, QPainter
+
         grid_size = 40
         img = QImage(grid_size, grid_size, QImage.Format.Format_ARGB32)
         img.fill(QColor(C_BG_DEEP))
@@ -138,9 +154,14 @@ class ZooScene(QGraphicsScene):
     def _create_enclosures(self) -> None:
         for edef in ENCLOSURE_DEFS:
             item = EnclosureItem(
-                enclosure_id=edef["id"], name=edef["name"],
-                biome=edef["biome"], x=edef["x"], y=edef["y"],
-                w=edef["w"], h=edef["h"], capacity=edef["capacity"],
+                enclosure_id=edef["id"],
+                name=edef["name"],
+                biome=edef["biome"],
+                x=edef["x"],
+                y=edef["y"],
+                w=edef["w"],
+                h=edef["h"],
+                capacity=edef["capacity"],
             )
             self.addItem(item)
             self._enclosures[edef["id"]] = item
@@ -210,23 +231,32 @@ class ZooScene(QGraphicsScene):
             else:
                 if a["species"] == "lion":
                     sprite = AsciiLionSprite(
-                        animal_id=aid, x=a["x"], y=a["y"],
+                        animal_id=aid,
+                        x=a["x"],
+                        y=a["y"],
                         name=a.get("name", "Löwe"),
                     )
                 elif a["species"] == "penguin":
                     sprite = AsciiPenguinSprite(
-                        animal_id=aid, x=a["x"], y=a["y"],
+                        animal_id=aid,
+                        x=a["x"],
+                        y=a["y"],
                         name=a.get("name", "Pingu"),
                     )
                 elif a["species"] == "giraffe":
                     sprite = AsciiGiraffeSprite(
-                        animal_id=aid, x=a["x"], y=a["y"],
+                        animal_id=aid,
+                        x=a["x"],
+                        y=a["y"],
                         name=a.get("name", "Giraffe"),
                     )
                 else:
                     sprite = AnimalSprite(
-                        animal_id=aid, species=a["species"],
-                        x=a["x"], y=a["y"], name=a.get("name", "?"),
+                        animal_id=aid,
+                        species=a["species"],
+                        x=a["x"],
+                        y=a["y"],
+                        name=a.get("name", "?"),
                     )
                 self.addItem(sprite)
                 self._animals[aid] = sprite
@@ -282,9 +312,23 @@ class ZooScene(QGraphicsScene):
             self.removeItem(sprite)
         self._visitors.clear()
 
-    # ── Accessors ─────────────────────────────────────────────────────────
+    # ── Public accessors (used by ZooMainWindow) ─────────────────────────
 
-    def animal_sprite(self, animal_id: str) -> Optional[AnimalSprite | AsciiLionSprite | AsciiPenguinSprite | AsciiGiraffeSprite]:
+    @property
+    def animals(self) -> dict:
+        """Return the animal sprite dictionary (public accessor)."""
+        return self._animals
+
+    @property
+    def enclosures(self) -> dict[str, EnclosureItem]:
+        """Return the enclosure item dictionary (public accessor)."""
+        return self._enclosures
+
+    def animal_sprite(
+        self, animal_id: str
+    ) -> Optional[
+        AnimalSprite | AsciiLionSprite | AsciiPenguinSprite | AsciiGiraffeSprite
+    ]:
         """Return the sprite for a given animal ID.
 
         Args:

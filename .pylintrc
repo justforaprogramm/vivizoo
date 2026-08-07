@@ -66,3 +66,12 @@ max-args=12
 max-positional-arguments=12
 max-attributes=25
 max-locals=20
+[MAIN]
+extension-pkg-allow-list=PyQt6,PyQt6.QtCore,PyQt6.QtGui,PyQt6.QtWidgets
+
+[MESSAGES CONTROL]
+disable = no-name-in-module,
+    invalid-name
+
+[FORMAT]
+max-line-length = 120

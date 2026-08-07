@@ -25,7 +25,6 @@ from __future__ import annotations
 import sys
 
 from PyQt6.QtWidgets import QApplication
-from PyQt6.QtCore import Qt
 
 from frontend.core.constants import (
     C_BG_DEEP,
@@ -39,7 +38,6 @@ from frontend.core.constants import (
     C_ACCENT_GLOW,
     C_RED,
     C_RED_GLOW,
-    C_GOLD,
     C_TEXT,
     C_TEXT_DIM,
     C_BORDER,
@@ -47,8 +45,8 @@ from frontend.core.constants import (
 from frontend.core.frontend_controller import FrontendController
 from frontend.core.main_window import ZooMainWindow
 
-
 # ── Full QSS Dark Theme (~100 lines) ─────────────────────────────────────
+
 
 def _get_qss() -> str:
     """Return the full QSS Dark Theme stylesheet.
@@ -307,6 +305,7 @@ def _get_qss() -> str:
 
 # ── Engine Factory ────────────────────────────────────────────────────────
 
+
 def _create_demo_engine() -> object | None:
     """Try to import and create a demo SimulationEngine with a pre-seeded zoo.
 
@@ -343,11 +342,12 @@ def _create_demo_engine() -> object | None:
         zoo.add_animal("penguin", "Kowalski", water)
 
         return SimulationEngine(zoo, persistence=None, logger=logger)
-    except Exception:
+    except Exception:  # pylint: disable=broad-exception-caught
         return None
 
 
 # ── Launch ─────────────────────────────────────────────────────────────────
+
 
 def launch_frontend(engine: object | None = None) -> int:
     """Create QApplication, apply QSS, show ZooMainWindow, and exec loop.
