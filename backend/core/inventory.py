@@ -106,9 +106,7 @@ class Inventory:
         Tests:
             1. A fresh inventory has zero for every food type.
         """
-        self._stock: dict[FoodType, int] = {
-            food_type: 0 for food_type in FoodType
-        }
+        self._stock: dict[FoodType, int] = {food_type: 0 for food_type in FoodType}
 
     def stock_of(self, food_type: FoodType) -> int:
         """Return the current amount of one resource.

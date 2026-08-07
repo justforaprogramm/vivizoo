@@ -289,8 +289,10 @@ class Zoo:
                         "ERROR",
                         f"{animal.name} has died.",
                         entity_id=animal.animal_id,
-                        details={"cause": "starvation",
-                                 "days_without_food": animal.days_starved},
+                        details={
+                            "cause": "starvation",
+                            "days_without_food": animal.days_starved,
+                        },
                     )
                     continue
                 survivors.append(animal)

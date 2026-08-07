@@ -19,8 +19,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable
 
-from backend.core.animal import create_animal, known_species
 from db.interface.enums import FoodType
+from backend.core.animal import create_animal, known_species
 
 if TYPE_CHECKING:  # type checkers only, avoids a runtime cycle
     from backend.core.zoo import Zoo
@@ -183,27 +183,26 @@ class ActionHandler:
         cleared = bool(animal.status_effects and animal.status_effects.pop())
         return ActionResult(
             True,
-            f"Healed {animal.name}."
-            + (" Status effect cleared." if cleared else ""),
+            f"Healed {animal.name}." + (" Status effect cleared." if cleared else ""),
             chat_entries=[{"type": "SUCCESS", "text": f"{animal.name} healed."}],
         )
 
-    def _action_buy_food(
-        self, type: str | None = None, amount: int = 1, **_: Any
-    ) -> ActionResult:
+    def _action_buy_food(self, amount: int = 1, **kw: Any) -> ActionResult:
         """Purchase food and add it to the inventory.
 
         Args:
-            type (str | None): Food type value (``"MEAT"`` etc.).
             amount (int): Units to buy.
+            **kw: Accepts ``food`` or the legacy ``type`` key, e.g.
+                ``food="MEAT"``.
 
         Returns:
             ActionResult: Outcome of the purchase.
         """
+        food_key = kw.pop("type", kw.pop("food", None))
         try:
-            food_type = FoodType(type) if type else FoodType.MEAT
+            food_type = FoodType(food_key) if food_key else FoodType.MEAT
         except ValueError:
-            return ActionResult(False, f"Unknown food type {type!r}.")
+            return ActionResult(False, f"Unknown food type {food_key!r}.")
         if amount <= 0:
             return ActionResult(False, "amount must be positive.")
         total = self._zoo.inventory.price_of(food_type) * amount
@@ -248,9 +247,7 @@ class ActionHandler:
             enclosure = self._zoo.enclosures[0]
         if enclosure.is_full():
             return ActionResult(False, f"{enclosure.name} is full.")
-        animal = self._zoo.add_animal(
-            species, name or f"New {species}", enclosure
-        )
+        animal = self._zoo.add_animal(species, name or f"New {species}", enclosure)
         return ActionResult(
             True,
             f"Bought {animal.name} for {price:.2f} into {enclosure.name}.",
