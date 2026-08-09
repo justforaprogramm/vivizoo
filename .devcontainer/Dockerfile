@@ -37,4 +37,4 @@ RUN echo "source /opt/venv/bin/activate" >> /etc/bash.bashrc && \
     echo "source /opt/venv/bin/activate" >> /home/vscode/.bashrc
 
 # Install Python packages
-RUN pip install --no-cache-dir pandas sqlalchemy "PyQt6>=6.5.0"
+RUN pip install --no-cache-dir pandas sqlalchemy pylint "PyQt6>=6.5.0"
