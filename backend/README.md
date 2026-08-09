@@ -103,6 +103,37 @@ pylint backend/                   # => 10.00/10
 
 ---
 
+## KI-Einsatz & Reflexion
+> **Note:** benutzt wurden `deepseek flash` von plattform.deepseek.com und `gemini flash` von gemini.google.com
+
+Dieses Backend wurde mit Unterstützung durch einen KI-Assistenten entwickelt.
+Die KI wurde gezielt für folgende Zwecke eingesetzt:
+
+* **Code schreiben:** Funktionen und Klassen wurden einzeln von der KI
+  generieren lassen (beispielsweise die Tick-Logik, die `Behaviour`-Strategien
+  oder die `ActionHandler`-Dispatcher), statt ganze Module auf einmal zu
+  erzeugen.
+* **Gedankenanstöße:** Die KI diente als Sparringspartner für Designfragen
+  (z. B. wie die Tages-/Phasenlogik getaktet wird, wie Besucher-Wahrscheinlichkeit
+  sinnvoll vom Wetter abhängen sollte oder wie die Persistenz sauber hinter einem
+  Adapter versteckt wird).
+* **Gezielte Umstrukturierung:** Schwer lesbarer oder „nicht guter" Code wurde
+  gezielt refaktorisiert — auf Basis konkreter KI-Vorschläge wurde die Struktur
+  umgebaut, ohne das bestehende Verhalten zu verändern.
+* **Pylint-Bereinigung:** Die KI half dabei, Pylint-Warnungen zu beheben und
+  die Konfiguration (`.pylintrc`) so anzupassen, dass sie die vom OOP-Entwurf
+  beabsichtigten Muster (Kapselung, schlanke Strategie-Klassen, `db`-Import der
+  Demo als dritte Partei) ohne die allgemeinen Qualitätsregeln
+  abzuschalten.
+
+**Eigenverantwortung / Qualitätssicherung:** Die KI wurde ausschließlich als
+Werkzeug eingesetzt. Jede einzelne erzeugte Funktion wurde **logisch selbst
+geprüft** (die `Tests:`-Blöcke in den Docstrings sind ein Ergebnis dieser
+manuellen Verifikation), sodass die KI-generierten Bausteine nur nach
+menschlicher Kontrolle übernommen wurden.
+
+---
+
 ## Tests
 
 Dieses Modul liefert keine fertigen Tests, sondern den Rahmen. Die Erwartungen an
