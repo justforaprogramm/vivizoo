@@ -1,21 +1,135 @@
-# vivizoo
+# vivizoo — Digitaler Zwilling einer Zoo-Simulation
 
-## distribution
+Objektorientierte Zoo-Simulation in Python mit PyQt6-Oberfläche, in drei
+klar getrennte Module aufgeteilt.
 
-Jannes: db
-Erik: frontend
-Benjamin: backend
+---
 
+## Zuständigkeiten
 
-## architektur
+| Modul | Ordner | Modulverantwortlicher | Schwerpunkt |
+|---|---|---|---|
+| **Frontend** | [`frontend/`](frontend/) | **Erik** | PyQt6-Oberfläche: Karte, Sprites, Panels, Interaktion |
+| **Backend** | [`backend/`](backend/) | **Benjamin** | Simulationslogik: Tick-Loop, Tiere, Personal, Finanzen, Aktionen |
+| **Datenbank** | [`db/`](db/) | **Jannes** | Persistenz: Tagesstatistiken, Ereignisse, Spielstände (SQLAlchemy/SQLite) |
 
-- halt ne db per endpoint
+Der Modulverantwortliche steht zusätzlich im Docstring der Python-Dateien
+(`Module owner: …`) — im Frontend und in der Datenbank in jeder Datei, im
+Backend bisher nur in einem Teil.
 
-- programm stil
+---
 
-- pyqt
+## Architektur
 
-- backend für pyqt
+```
+┌─────────────┐   API-Aufrufe   ┌─────────────┐   domain→models   ┌─────────────┐
+│  Frontend   │ ──────────────▶ │   Backend   │ ───────────────▶ │  Datenbank  │
+│   (PyQt6)   │ ◀────────────── │             │ ◀─────────────── │   (db/)     │
+└─────────────┘   Snapshots     └─────────────┘   models          └─────────────┘
+     Erik                        Benjamin                            Jannes
+```
+
+**Die Schnittstellen sind einseitig und dokumentiert:**
+
+* Das Frontend spricht mit genau einem Objekt, der `SimulationEngine`.
+  Vertrag: [`backend/docs/api.md`](backend/docs/api.md). Es importiert
+  weder `db` noch (außerhalb seines Einstiegspunkts) `backend`.
+* Das Backend schreibt kein SQL. Nur
+  [`backend/persistence/db_gateway.py`](backend/persistence/db_gateway.py)
+  kennt das Datenbankmodul und benutzt dessen Vertrag
+  `db.interface.AbstractPersistence`.
+* Die Datenbank kennt weder Frontend noch Backend.
+
+---
+
+## Schnellstart
+
+Voraussetzung: Python 3.14 (der Devcontainer bringt ihn mit). Alle Befehle
+aus dem Projektwurzelverzeichnis.
+
+```bash
+# Abhängigkeiten (das Backend ist reine Standardbibliothek und braucht
+# keine eigene requirements.txt — seine Datenbankanbindung deckt db/ ab)
+pip install -r frontend/requirements.txt
+pip install -r db/requirements.txt
+
+# PyQt6 braucht unter Linux zwei Systembibliotheken
+sudo apt-get install -y libgl1 libegl1
+```
+
+### Die Anwendung starten
+
+```bash
+python -m frontend.main
+```
+
+Es öffnet sich das Simulationsfenster mit einem vorbereiteten Zoo
+(drei Gehege, vier Tiere). Bedienung und Maussteuerung:
+[`frontend/README.md`](frontend/README.md).
+
+### Module einzeln prüfen
+
+```bash
+python -m frontend.main --no-engine   # Oberfläche ohne Backend
+python -m backend.demo                # Simulationslogik in der Konsole
+python -m backend.demo --with-db      # zusätzlich mit Datenbankanbindung
+python -m db.demo                     # Datenbank: drei Tage schreiben und lesen
+```
+
+### Ohne Bildschirm (CI, SSH)
+
+```bash
+QT_QPA_PLATFORM=offscreen python -c "
+from PyQt6.QtWidgets import QApplication
+from PyQt6.QtCore import QTimer
+from frontend.main import _get_qss, _create_demo_engine
+from frontend.core.frontend_controller import FrontendController
+from frontend.core.main_window import ZooMainWindow
+app = QApplication([]); app.setStyleSheet(_get_qss())
+engine, grund = _create_demo_engine()          # Tupel: (Engine, Fehlergrund)
+win = ZooMainWindow(FrontendController(engine)); win.show()
+QTimer.singleShot(2000, app.quit); app.exec()
+tiere = len(win._controller.get_state().get('animals_on_map') or [])
+print(f'Frontend laeuft. Tiere im Snapshot: {tiere}   Backend: {grund or \"ok\"}')
+"
+```
+
+---
+
+## Dokumentation je Modul
+
+| Modul | Einstieg | Diagramme | Testplan | Reflexion |
+|---|---|---|---|---|
+| Frontend | [README](frontend/README.md) · [Architektur](frontend/FRONTEND_ARCHITECTURE.md) · [Planung & Ausblick](frontend/docs/IMPLEMENTATION_PLAN.md) | [Klassen-, Sequenz-, Zustands- & Komponentendiagramme](frontend/docs/frontend_class_diagram.md) | [test_plan.md](frontend/docs/test_plan.md) · [criteria_audit.md](frontend/docs/criteria_audit.md) | [KI_REFLEXION.md](frontend/docs/KI_REFLEXION.md) |
+| Backend | [README](backend/README.md) · [api.md](backend/docs/api.md) | [class_diagram.md](backend/docs/class_diagram.md) · [sequence_diagrams.md](backend/docs/sequence_diagrams.md) | [test_plan.md](backend/docs/test_plan.md) | — |
+| Datenbank | [README](db/README.md) · [usage.md](db/docs/usage.md) | [uml_class_diagram.md](db/docs/uml_class_diagram.md) · [uml_er_diagram.md](db/docs/uml_er_diagram.md) | [test_plan.md](db/docs/test_plan.md) | [reflection.md](db/docs/reflection.md) |
+
+**Tests:** Die Aufgabenstellung verlangt beschriebene, nicht implementierte
+Tests. Jedes Modul hinterlegt sie als `Tests:`-Block im Docstring der
+jeweiligen Funktion; die Strategie steht im Testplan des Moduls.
+
+Das Frontend hat darüber hinaus **229 ausgeführte Tests** — ohne
+zusätzliche Abhängigkeit, `unittest` gehört zur Standardbibliothek:
+
+```bash
+QT_QPA_PLATFORM=offscreen python -m unittest discover -s frontend/tests -t .
+```
+
+Und es ist statisch geprüft: `pylint frontend/` gibt **10,00/10**. Jede der
+25 begründeten Ausnahmen steht einzeln in
+[`frontend/docs/test_plan.md`](frontend/docs/test_plan.md) §8.
+
+---
+
+## Hinweis zur Abgabe
+
+Beim Zippen `.venv/`, `__pycache__/` und `data/*.sqlite*` ausschließen:
+
+```bash
+zip -r vivizoo.zip . -x "*.venv/*" "*__pycache__/*" "*.git/*" "data/*.sqlite*"
+```
+
+---
 
 ## requirements
 

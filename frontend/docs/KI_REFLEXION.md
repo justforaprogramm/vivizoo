@@ -96,7 +96,7 @@ attributes. Everything else sits once in `AnimalSpriteBase` (465 lines) and
 A signal carried `(str, dict)`, but PyQt only passes as many arguments as the
 slot takes positionally. So the dict was dropped. Three of four buttons did
 nothing and the backend answered "No animal with id None." There was no
-exception, no crash and no log entry.
+exception, no crash and no log entry. That is the kind of bug I would not have found by reading the code.
 
 ### 4.3 About software architecture
 
