@@ -187,9 +187,7 @@ class ShopPanel(QWidget):
         animal_layout.addWidget(self._btn_buy_animal)
 
         self._animal_combo.currentIndexChanged.connect(self._refresh_buttons)
-        self._enclosure_combo.currentIndexChanged.connect(
-            self._refresh_enclosure_info
-        )
+        self._enclosure_combo.currentIndexChanged.connect(self._refresh_enclosure_info)
         return animal_group
 
     # ── Public interface ──────────────────────────────────────────────────
@@ -216,8 +214,7 @@ class ShopPanel(QWidget):
         self._food_inv_label.setText(
             "Im Lager:  "
             + "  |  ".join(
-                f"{FOOD_LABELS[key]}: {inventory.get(key, 0)}"
-                for key in INVENTORY_KEYS
+                f"{FOOD_LABELS[key]}: {inventory.get(key, 0)}" for key in INVENTORY_KEYS
             )
         )
 
@@ -233,7 +230,7 @@ class ShopPanel(QWidget):
 
         Returns:
             None.
-        
+
         Tests:
             - test_shows_occupancy: Pass an enclosure with capacity 5 and 3
               occupied; verify the label reads "3 / 5".
@@ -241,9 +238,7 @@ class ShopPanel(QWidget):
               not contain; verify the label reads "—".
         """
         target_id = self._enclosure_combo.currentData()
-        entry = next(
-            (e for e in self._enclosures if e.get("id") == target_id), None
-        )
+        entry = next((e for e in self._enclosures if e.get("id") == target_id), None)
         if entry is None:
             self._enclosure_info.setText("—")
             return
@@ -268,7 +263,7 @@ class ShopPanel(QWidget):
 
         Returns:
             None.
-        
+
         Tests:
             - test_food_button_disabled_when_broke: Set money below the total;
               verify the food button is disabled.
@@ -280,16 +275,14 @@ class ShopPanel(QWidget):
         self._btn_buy_food.setEnabled(self._money >= food_total)
 
         species = self._animal_combo.currentData()
-        self._btn_buy_animal.setEnabled(
-            self._money >= ANIMAL_PRICES.get(species, 0.0)
-        )
+        self._btn_buy_animal.setEnabled(self._money >= ANIMAL_PRICES.get(species, 0.0))
 
     def _update_food_total(self) -> None:
         """Recompute the food price preview after a type or amount change.
 
         Returns:
             None.
-        
+
         Tests:
             - test_total_is_price_times_amount: Select MEAT (8 €) with amount 5;
               verify the label reads "Gesamt: 40 €".
@@ -306,7 +299,7 @@ class ShopPanel(QWidget):
 
         Returns:
             None.
-        
+
         Tests:
             - test_emits_selected_type: Select FISH, call it; verify buy_food
               carried "FISH".
@@ -320,7 +313,7 @@ class ShopPanel(QWidget):
 
         Returns:
             None.
-        
+
         Tests:
             - test_emits_all_three_kwargs: Pick a species, a name and a target;
               verify all three reach the signal.

@@ -56,9 +56,7 @@ LIGHTING_FADE_MS = 800
 # AnimalSpriteBase deliberately carries no Qt state — see entity_sprite.py —
 # so this alias names the pair once instead of repeating the species list at
 # every use site. Adding a species means extending this one line.
-AnimalSpriteT = (
-    AnimalSprite | AsciiLionSprite | AsciiPenguinSprite | AsciiGiraffeSprite
-)
+AnimalSpriteT = AnimalSprite | AsciiLionSprite | AsciiPenguinSprite | AsciiGiraffeSprite
 
 
 # Eight fields instead of seven: three sprite registries (animals, visitors,
@@ -134,7 +132,7 @@ class ZooScene(QGraphicsScene):
 
         Returns:
             QBrush: A tiling brush with one dot per grid cell.
-        
+
         Tests:
             - test_returns_tiling_brush: Call it; verify the brush carries a
               40×40 texture.
@@ -157,7 +155,7 @@ class ZooScene(QGraphicsScene):
 
         Returns:
             None.
-        
+
         Tests:
             - test_creates_one_item_per_definition: Call it; verify the enclosure
               dict length equals len(ENCLOSURE_DEFS).
@@ -188,7 +186,7 @@ class ZooScene(QGraphicsScene):
 
         Returns:
             None.
-        
+
         Tests:
             - test_overlay_brush_follows_value: Call with a red QColor; verify the
               overlay brush is red.
@@ -222,9 +220,7 @@ class ZooScene(QGraphicsScene):
         if phase == self._phase:
             return
 
-        rgba = PHASE_LIGHTING.get(
-            phase, LIGHTING_DAY if zoo_open else LIGHTING_NIGHT
-        )
+        rgba = PHASE_LIGHTING.get(phase, LIGHTING_DAY if zoo_open else LIGHTING_NIGHT)
         target = QColor(*rgba)
 
         self._lighting_anim.stop()
@@ -269,7 +265,7 @@ class ZooScene(QGraphicsScene):
 
         Returns:
             None.
-        
+
         Tests:
             - test_creates_missing_sprites: Pass one unseen animal; verify a
               sprite was created for it.
@@ -300,7 +296,7 @@ class ZooScene(QGraphicsScene):
         Returns:
             The species-specific ASCII sprite, or a generic AnimalSprite
             circle for species without dedicated art.
-        
+
         Tests:
             - test_lion_gets_ascii_sprite: Pass species "lion"; verify an
               AsciiLionSprite is returned.
@@ -318,9 +314,7 @@ class ZooScene(QGraphicsScene):
             return AsciiPenguinSprite(animal_id=animal_id, x=x, y=y, name=name)
         if species == "giraffe":
             return AsciiGiraffeSprite(animal_id=animal_id, x=x, y=y, name=name)
-        return AnimalSprite(
-            animal_id=animal_id, species=species, x=x, y=y, name=name
-        )
+        return AnimalSprite(animal_id=animal_id, species=species, x=x, y=y, name=name)
 
     def _update_visitors(self, visitors: list[dict]) -> None:
         """Batch-update the visitor dots.
@@ -330,7 +324,7 @@ class ZooScene(QGraphicsScene):
 
         Returns:
             None.
-        
+
         Tests:
             - test_creates_missing_dots: Pass one unseen visitor; verify a dot was
               created.
@@ -362,7 +356,7 @@ class ZooScene(QGraphicsScene):
 
         Returns:
             None.
-        
+
         Tests:
             - test_pushes_occupancy: Pass an entry with occupied=2; verify the
               item label shows 2.
@@ -372,9 +366,7 @@ class ZooScene(QGraphicsScene):
         for entry in enclosures:
             item = self._enclosures.get(entry.get("id", ""))
             if item is not None:
-                item.update_state(
-                    entry.get("occupied", 0), entry.get("cleanliness")
-                )
+                item.update_state(entry.get("occupied", 0), entry.get("cleanliness"))
 
     # ── Public accessors ──────────────────────────────────────────────────
 

@@ -6,4 +6,5 @@ user input into God-mode actions. It never imports ``db`` and reaches
 
 Module owner: Erik (frontend).
 """
+
 # vivizoo — Frontend (`frontend/`)

@@ -441,7 +441,7 @@ class FrontendController:
 
         Returns:
             None.
-        
+
         Tests:
             - test_adds_missing_names: Pass a snapshot whose animals carry no
               "name"; verify each one has a resolved name afterwards.
@@ -468,7 +468,7 @@ class FrontendController:
             id, name, biome, x, y, w, h, capacity, cleanliness, free_slots
             and occupied. ``cleanliness`` is None when the backend does not
             know the id.
-        
+
         Tests:
             - test_one_entry_per_definition: Verify the result length equals
               len(ENCLOSURE_DEFS).

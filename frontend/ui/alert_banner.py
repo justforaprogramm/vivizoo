@@ -122,9 +122,7 @@ class AlertBanner(QFrame):
 
         errors = [m for m in alerts if m.get("type") == "ERROR"]
         chosen = (errors or alerts)[-1]
-        self.show_alert(
-            str(chosen.get("type", "WARNING")), str(chosen.get("text", ""))
-        )
+        self.show_alert(str(chosen.get("type", "WARNING")), str(chosen.get("text", "")))
         return True
 
     def show_alert(self, severity: str, text: str) -> None:

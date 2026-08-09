@@ -279,7 +279,7 @@ class StatsPanel(QWidget):
 
         Returns:
             None.
-        
+
         Tests:
             - test_cell_text_written: Call with "42"; verify that cell reads
               "42".

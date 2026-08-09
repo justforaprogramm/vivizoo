@@ -82,8 +82,11 @@ class FakeEngine:
     def get_game_state(self) -> dict:
         """Return a copy of the canned snapshot."""
         return {
-            key: ([dict(item) for item in value] if isinstance(value, list)
-                  else dict(value) if isinstance(value, dict) else value)
+            key: (
+                [dict(item) for item in value]
+                if isinstance(value, list)
+                else dict(value) if isinstance(value, dict) else value
+            )
             for key, value in self.state.items()
         }
 
@@ -110,8 +113,12 @@ class FakeEngine:
 
 EMPTY_STATE: dict = {
     "system": {"tick_count": 0, "time_of_day": "MORNING", "zoo_open": True},
-    "finances": {"money": 10000.0, "revenue": 0.0, "expenses": 0.0,
-                 "ticket_price": 12.5},
+    "finances": {
+        "money": 10000.0,
+        "revenue": 0.0,
+        "expenses": 0.0,
+        "ticket_price": 12.5,
+    },
     "inventory": {"MEAT": 0, "PLANTS": 0, "FISH": 0, "MEDICINE": 0},
     "animals_on_map": [],
     "visitors_on_map": [],
@@ -139,7 +146,9 @@ def state_with_animals(*animals: dict) -> dict:
         }
         entry.update(animal)
         filled.append(entry)
-    snapshot = {key: (dict(value) if isinstance(value, dict) else list(value))
-                for key, value in EMPTY_STATE.items()}
+    snapshot = {
+        key: (dict(value) if isinstance(value, dict) else list(value))
+        for key, value in EMPTY_STATE.items()
+    }
     snapshot["animals_on_map"] = filled
     return snapshot

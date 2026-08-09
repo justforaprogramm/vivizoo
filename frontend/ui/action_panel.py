@@ -103,9 +103,7 @@ class ActionPanel(QWidget):
             self._btn_heal,
             self._btn_clean,
         ):
-            button.setSizePolicy(
-                QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
-            )
+            button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             button.setEnabled(False)
             # The label is the accessible name by default; the shortcut is
             # not, and a disabled button's reason lives in its tooltip. Both
@@ -188,23 +186,20 @@ class ActionPanel(QWidget):
                 "Füttert jedes ausreichend hungrige Tier. Passendes Futter "
                 "vorrätig: "
                 + ", ".join(FOOD_LABELS.get(k, k) for k in species_in_stock)
-                + "."
+                + ".",
             )
         elif has_any_stock:
             self._set_hint(
                 self._btn_feed_all,
                 "Das Lager passt zu keinem lebenden Tier — jede Art frisst "
-                "nur ihr eigenes Futter."
+                "nur ihr eigenes Futter.",
             )
         else:
             self._set_hint(
-                self._btn_feed_all,
-                "Kein Futter im Lager — erst im Shop kaufen."
+                self._btn_feed_all, "Kein Futter im Lager — erst im Shop kaufen."
             )
 
-        animal = next(
-            (a for a in animals if a.get("id") == selected_animal_id), None
-        )
+        animal = next((a for a in animals if a.get("id") == selected_animal_id), None)
         self._update_feed_one(animal, inventory)
         self._update_heal(animal)
         self._update_clean(game_state.get("enclosures_on_map") or [])
@@ -234,9 +229,7 @@ class ActionPanel(QWidget):
         """
         button.setToolTip(text)
         key = self._keys.get(button)
-        button.setAccessibleDescription(
-            f"{text} Tastenkürzel {key}." if key else text
-        )
+        button.setAccessibleDescription(f"{text} Tastenkürzel {key}." if key else text)
 
     def _update_feed_one(self, animal: dict | None, inventory: dict) -> None:
         """Set state and tooltip of the single-feed button.
@@ -271,10 +264,12 @@ class ActionPanel(QWidget):
         label = FOOD_LABELS.get(food_type, food_type or "Futter")
         self._set_hint(
             self._btn_feed_one,
-            f"Füttert {animal.get('name', 'das Tier')} mit {label} "
-            f"(Lager: {stock})."
-            if stock > 0
-            else f"Kein {label} im Lager.",
+            (
+                f"Füttert {animal.get('name', 'das Tier')} mit {label} "
+                f"(Lager: {stock})."
+                if stock > 0
+                else f"Kein {label} im Lager."
+            ),
         )
 
     def _update_heal(self, animal: dict | None) -> None:
@@ -300,10 +295,12 @@ class ActionPanel(QWidget):
         self._btn_heal.setEnabled(alive)
         self._set_hint(
             self._btn_heal,
-            f"Heilt {animal.get('name', 'das Tier')} und entfernt einen "
-            "Statuseffekt."
-            if alive
-            else "Das Tier ist verstorben.",
+            (
+                f"Heilt {animal.get('name', 'das Tier')} und entfernt einen "
+                "Statuseffekt."
+                if alive
+                else "Das Tier ist verstorben."
+            ),
         )
 
     def _update_clean(self, enclosures: list[dict]) -> None:

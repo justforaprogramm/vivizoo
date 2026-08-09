@@ -184,16 +184,27 @@ class TestDispatch(unittest.TestCase):
         """Create a window with one living lion."""
         self.engine = FakeEngine(
             state=state_with_animals({"id": "a_01", "species": "lion"}),
-            info={"a_01": {"name": "Simba", "species": "lion", "hp": 90.0,
-                           "hunger": 10.0, "welfare": 80.0, "is_dead": False}},
+            info={
+                "a_01": {
+                    "name": "Simba",
+                    "species": "lion",
+                    "hp": 90.0,
+                    "hunger": 10.0,
+                    "welfare": 80.0,
+                    "is_dead": False,
+                }
+            },
         )
         self.engine.state["inventory"]["MEAT"] = 5
         self.window = _window(self.engine)
 
     def _actions(self) -> list[tuple]:
         """Return every (action, kwargs) pair the engine received."""
-        return [call for call in self.engine.calls if isinstance(call, tuple)
-                and call[0] != "get_stats"]
+        return [
+            call
+            for call in self.engine.calls
+            if isinstance(call, tuple) and call[0] != "get_stats"
+        ]
 
     def test_feed_all_reaches_the_backend(self) -> None:
         """The simplest action, straight through."""
@@ -208,6 +219,7 @@ class TestDispatch(unittest.TestCase):
 
     def test_failed_action_is_marked_with_a_cross(self) -> None:
         """The user must see that nothing happened."""
+
         class Failing(FakeEngine):
             """Engine whose every action reports failure."""
 
@@ -235,8 +247,16 @@ class TestSelection(unittest.TestCase):
             state=state_with_animals(
                 {"id": "a_01", "species": "lion", "x": 150.0, "y": 120.0}
             ),
-            info={"a_01": {"name": "Simba", "species": "lion", "hp": 90.0,
-                           "hunger": 10.0, "welfare": 80.0, "is_dead": False}},
+            info={
+                "a_01": {
+                    "name": "Simba",
+                    "species": "lion",
+                    "hp": 90.0,
+                    "hunger": 10.0,
+                    "welfare": 80.0,
+                    "is_dead": False,
+                }
+            },
         )
         engine.state["inventory"]["MEAT"] = 5
         self.window = _window(engine)
@@ -326,8 +346,16 @@ class TestShortcuts(unittest.TestCase):
         """Create a window with a stocked inventory and one lion."""
         self.engine = FakeEngine(
             state=state_with_animals({"id": "a_01", "species": "lion"}),
-            info={"a_01": {"name": "Simba", "species": "lion", "hp": 50.0,
-                           "hunger": 40.0, "welfare": 60.0, "is_dead": False}},
+            info={
+                "a_01": {
+                    "name": "Simba",
+                    "species": "lion",
+                    "hp": 50.0,
+                    "hunger": 40.0,
+                    "welfare": 60.0,
+                    "is_dead": False,
+                }
+            },
         )
         self.engine.state["inventory"]["MEAT"] = 5
         self.window = _window(self.engine)
@@ -454,11 +482,16 @@ class TestAccessibility(unittest.TestCase):
     def test_every_chip_is_named(self) -> None:
         """A chip's caption is an emoji; a screen reader needs words."""
         for chip in (
-            self.window._chip_day, self.window._chip_phase,
-            self.window._chip_budget, self.window._chip_revenue,
-            self.window._chip_expenses, self.window._chip_ticket,
-            self.window._chip_open, self.window._chip_animals,
-            self.window._chip_visitors, self.window._chip_enclosures,
+            self.window._chip_day,
+            self.window._chip_phase,
+            self.window._chip_budget,
+            self.window._chip_revenue,
+            self.window._chip_expenses,
+            self.window._chip_ticket,
+            self.window._chip_open,
+            self.window._chip_animals,
+            self.window._chip_visitors,
+            self.window._chip_enclosures,
             self.window._chip_action,
         ):
             self.assertTrue(chip.accessibleName(), "chip without a name")
@@ -466,9 +499,7 @@ class TestAccessibility(unittest.TestCase):
     def test_chip_value_reaches_the_accessible_text(self) -> None:
         """The name says what it is, the description what it reads."""
         self.window._chip_budget.set_value("5.000 €")
-        self.assertEqual(
-            self.window._chip_budget.accessibleDescription(), "5.000 €"
-        )
+        self.assertEqual(self.window._chip_budget.accessibleDescription(), "5.000 €")
 
     def test_map_and_controls_are_named(self) -> None:
         """Otherwise they are announced as "view" and "button"."""

@@ -5,4 +5,5 @@ by a console frontend as well.
 
 Module owner: Erik (frontend).
 """
+
 # vivizoo — Frontend Assets

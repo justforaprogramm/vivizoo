@@ -155,9 +155,7 @@ class AnimalListPanel(QWidget):
         self._table.setHorizontalHeaderLabels(list(ROSTER_COLUMNS))
         self._table.verticalHeader().setVisible(False)
         self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self._table.setSelectionBehavior(
-            QAbstractItemView.SelectionBehavior.SelectRows
-        )
+        self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self._table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self._table.setMinimumHeight(120)
         self._table.setVisible(False)

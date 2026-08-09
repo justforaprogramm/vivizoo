@@ -152,7 +152,7 @@ class EntityInfoPanel(QGroupBox):
 
         Returns:
             QProgressBar: A configured, zeroed bar.
-        
+
         Tests:
             - test_range_is_zero_to_hundred: Create a bar; verify minimum 0 and
               maximum 100.
@@ -175,7 +175,7 @@ class EntityInfoPanel(QGroupBox):
 
         Returns:
             str: A QSS snippet for QProgressBar and QProgressBar::chunk.
-        
+
         Tests:
             - test_contains_accent_colour: Call with the green accent; verify the
               snippet contains it.

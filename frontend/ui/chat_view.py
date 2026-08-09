@@ -240,8 +240,9 @@ class ChatlogWidget(QWidget):
               verify the view is scrolled to the newest entry, not the top.
         """
         self._text_edit.setHtml(
-            "<br>".join(html for severity, html in self._entries
-                        if self._accepts(severity))
+            "<br>".join(
+                html for severity, html in self._entries if self._accepts(severity)
+            )
         )
         # setHtml resets the cursor to position 0; without moving it back the
         # feed would stay pinned to the top from the 500th message on.
@@ -264,9 +265,7 @@ class ChatlogWidget(QWidget):
               plain caption without a number.
         """
         count = len(self._entries)
-        self._header.setText(
-            f"📋 Nachrichten · {count}" if count else "📋 Nachrichten"
-        )
+        self._header.setText(f"📋 Nachrichten · {count}" if count else "📋 Nachrichten")
 
     @staticmethod
     def format_timestamp(tick_count: object) -> str:

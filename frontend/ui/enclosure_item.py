@@ -220,7 +220,7 @@ class EnclosureItem(QGraphicsRectItem):
 
         Returns:
             None.
-        
+
         Tests:
             - test_label_centred_horizontally: Call it; verify the label midpoint
               matches the rectangle midpoint.

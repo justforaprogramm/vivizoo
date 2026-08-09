@@ -120,8 +120,7 @@ class TestChatlog(unittest.TestCase):
     def test_filter_hides_but_keeps_entries(self) -> None:
         """Filtering is a view, not a delete."""
         self.chat.append_messages(
-            [{"type": "INFO", "text": "leise"},
-             {"type": "ERROR", "text": "laut"}], 0
+            [{"type": "INFO", "text": "leise"}, {"type": "ERROR", "text": "laut"}], 0
         )
         self.chat._filter_combo.setCurrentIndex(1)
         shown = self.chat._text_edit.toPlainText()
@@ -208,10 +207,24 @@ class _RosterFixture:
         """Create a roster with one healthy and one dead animal."""
         self.panel = AnimalListPanel()
         self.animals = [
-            {"id": "a_01", "name": "Ayla", "species": "lion", "hp": 81.7,
-             "hunger": 10.0, "welfare": 70.0, "is_dead": False},
-            {"id": "a_02", "name": "Bo", "species": "penguin", "hp": 10.0,
-             "hunger": 95.0, "welfare": 15.0, "is_dead": True},
+            {
+                "id": "a_01",
+                "name": "Ayla",
+                "species": "lion",
+                "hp": 81.7,
+                "hunger": 10.0,
+                "welfare": 70.0,
+                "is_dead": False,
+            },
+            {
+                "id": "a_02",
+                "name": "Bo",
+                "species": "penguin",
+                "hp": 10.0,
+                "hunger": 95.0,
+                "welfare": 15.0,
+                "is_dead": True,
+            },
         ]
         self.panel.refresh(self.animals)
 
@@ -298,6 +311,7 @@ class TestAnimalListPanel(_RosterFixture, unittest.TestCase):
         )
         self.assertEqual(received, ["a_02"])
 
+
 class TestAnimalListInteraction(_RosterFixture, unittest.TestCase):
     """Sorting, filtering, selection — everything the user does to it.
 
@@ -310,10 +324,24 @@ class TestAnimalListInteraction(_RosterFixture, unittest.TestCase):
         by accident, and "9" would break it."""
         self.panel.refresh(
             [
-                {"id": "a_01", "name": "Ayla", "species": "lion", "hp": 100.0,
-                 "hunger": 0.0, "welfare": 100.0, "is_dead": False},
-                {"id": "a_02", "name": "Bo", "species": "lion", "hp": 9.0,
-                 "hunger": 0.0, "welfare": 100.0, "is_dead": False},
+                {
+                    "id": "a_01",
+                    "name": "Ayla",
+                    "species": "lion",
+                    "hp": 100.0,
+                    "hunger": 0.0,
+                    "welfare": 100.0,
+                    "is_dead": False,
+                },
+                {
+                    "id": "a_02",
+                    "name": "Bo",
+                    "species": "lion",
+                    "hp": 9.0,
+                    "hunger": 0.0,
+                    "welfare": 100.0,
+                    "is_dead": False,
+                },
             ]
         )
         self.panel._table.sortByColumn(2, Qt.SortOrder.AscendingOrder)
@@ -486,14 +514,23 @@ class TestActionPanel(unittest.TestCase):
             {"id": "a_01", "species": "lion", "name": "Simba"}
         )
         self.state["enclosures_on_map"] = [
-            {"id": "e_01", "name": "Savanne 1", "capacity": 5,
-             "cleanliness": 45.0, "occupied": 1}
+            {
+                "id": "e_01",
+                "name": "Savanne 1",
+                "capacity": 5,
+                "cleanliness": 45.0,
+                "occupied": 1,
+            }
         ]
 
     def test_all_buttons_start_disabled(self) -> None:
         """Nothing is actionable before the first snapshot."""
-        for button in (self.panel._btn_feed_all, self.panel._btn_feed_one,
-                       self.panel._btn_heal, self.panel._btn_clean):
+        for button in (
+            self.panel._btn_feed_all,
+            self.panel._btn_feed_one,
+            self.panel._btn_heal,
+            self.panel._btn_clean,
+        ):
             self.assertFalse(button.isEnabled())
 
     def test_feed_all_needs_matching_stock(self) -> None:
@@ -589,8 +626,7 @@ class TestShopPanel(unittest.TestCase):
 
     def test_inventory_label_lists_every_key(self) -> None:
         """MEDICINE is displayed although it is not for sale."""
-        self.state["inventory"] = {"MEAT": 4, "PLANTS": 3, "FISH": 2,
-                                   "MEDICINE": 1}
+        self.state["inventory"] = {"MEAT": 4, "PLANTS": 3, "FISH": 2, "MEDICINE": 1}
         self.panel.update_state(self.state)
         text = self.panel._food_inv_label.text()
         for label in ("Fleisch", "Pflanzen", "Fisch", "Medikamente"):
@@ -612,9 +648,7 @@ class TestShopPanel(unittest.TestCase):
     def test_buy_animal_sends_all_three_kwargs(self) -> None:
         """Name and target enclosure must not be dropped."""
         received: list[tuple] = []
-        self.panel.buy_animal.connect(
-            lambda s, n, e: received.append((s, n, e))
-        )
+        self.panel.buy_animal.connect(lambda s, n, e: received.append((s, n, e)))
         self.panel._name_edit.setText("Nala")
         self.panel._btn_buy_animal.click()
         species, name, enclosure = received[0]
@@ -648,9 +682,16 @@ class TestEntityInfoPanel(unittest.TestCase):
     def test_animal_payload_fills_the_form(self) -> None:
         """Every field the backend sends is rendered."""
         self.panel.show_entity(
-            {"name": "Simba", "species": "lion", "age_days": 3, "hp": 90.0,
-             "hunger": 20.0, "welfare": 80.0, "is_dead": False,
-             "status_effects": ["Stressed"]}
+            {
+                "name": "Simba",
+                "species": "lion",
+                "age_days": 3,
+                "hp": 90.0,
+                "hunger": 20.0,
+                "welfare": 80.0,
+                "is_dead": False,
+                "status_effects": ["Stressed"],
+            }
         )
         self.assertIn("Simba", self.panel._lbl_name.text())
         self.assertIn("Löwe", self.panel._lbl_name.text())
@@ -675,8 +716,13 @@ class TestEntityInfoPanel(unittest.TestCase):
     def test_enclosure_form_shows_occupancy(self) -> None:
         """capacity minus free_slots is what a keeper wants to read."""
         self.panel.show_enclosure(
-            {"name": "Savanne 1", "biome": "savanna", "capacity": 5,
-             "free_slots": 2, "cleanliness": 88.0}
+            {
+                "name": "Savanne 1",
+                "biome": "savanna",
+                "capacity": 5,
+                "free_slots": 2,
+                "cleanliness": 88.0,
+            }
         )
         self.assertIn("3 / 5", self.panel._lbl_enc_slots.text())
         self.assertTrue(self.panel._enclosure_box.isVisibleTo(self.panel))
@@ -742,8 +788,6 @@ class TestStatsPanel(unittest.TestCase):
         self.assertEqual(self.panel._chart.day_count, 0)
 
 
-
-
 class TestStyledWidgets(unittest.TestCase):
     """The three button variants and the label helper."""
 
@@ -798,9 +842,7 @@ class TestHelpDialog(unittest.TestCase):
 
     def test_legend_explains_the_dead_marker(self) -> None:
         """The red cross needs an explanation somewhere."""
-        self.assertTrue(
-            any("verstorben" in line for line in HelpDialog.legend_lines())
-        )
+        self.assertTrue(any("verstorben" in line for line in HelpDialog.legend_lines()))
 
     def test_dialog_is_modal(self) -> None:
         """The simulation keeps running behind it, but no stray clicks."""

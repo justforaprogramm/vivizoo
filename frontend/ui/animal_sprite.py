@@ -260,6 +260,9 @@ class AnimalSprite(AnimalSpriteBase, QGraphicsEllipseItem):
         self.setRect(self._cx - size / 2, self._cy - size / 2, size, size)
         # A dead sprite keeps its red border — only a living one returns to
         # the neutral outline.
-        self.setPen(QPen(QColor(C_RED if self._is_dead else C_BORDER),
-                         2 if self._is_dead else 1))
+        self.setPen(
+            QPen(
+                QColor(C_RED if self._is_dead else C_BORDER), 2 if self._is_dead else 1
+            )
+        )
         self._centre_label(size)

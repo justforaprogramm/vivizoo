@@ -59,12 +59,26 @@ class TestEnrichment(unittest.TestCase):
                 {"id": "a_02", "species": "giraffe"},
             ),
             info={
-                "a_01": {"name": "Simba", "hp": 90.0, "hunger": 10.0,
-                         "welfare": 80.0, "species": "lion"},
-                "a_02": {"name": "Melman", "hp": 70.0, "hunger": 40.0,
-                         "welfare": 60.0, "species": "giraffe"},
-                "e_01": {"name": "Savanne 1", "biome": "savanna",
-                         "cleanliness": 88.0, "free_slots": 3},
+                "a_01": {
+                    "name": "Simba",
+                    "hp": 90.0,
+                    "hunger": 10.0,
+                    "welfare": 80.0,
+                    "species": "lion",
+                },
+                "a_02": {
+                    "name": "Melman",
+                    "hp": 70.0,
+                    "hunger": 40.0,
+                    "welfare": 60.0,
+                    "species": "giraffe",
+                },
+                "e_01": {
+                    "name": "Savanne 1",
+                    "biome": "savanna",
+                    "cleanliness": 88.0,
+                    "free_slots": 3,
+                },
             },
         )
         self.controller = FrontendController(self.engine)
@@ -220,6 +234,7 @@ class TestErrorPaths(unittest.TestCase):
 
     def test_value_error_becomes_a_failure_dict(self) -> None:
         """An unknown action name is reported, not raised."""
+
         class Rejecting(FakeEngine):
             """Engine that rejects every action name."""
 
@@ -233,6 +248,7 @@ class TestErrorPaths(unittest.TestCase):
 
     def test_type_error_surfaces_the_backend_message(self) -> None:
         """The real cause must reach the user — see buy_animal."""
+
         class Broken(FakeEngine):
             """Engine reproducing the real buy_animal TypeError."""
 
@@ -246,6 +262,7 @@ class TestErrorPaths(unittest.TestCase):
 
     def test_engine_without_actions_is_reported(self) -> None:
         """An engine that cannot act says so instead of failing silently."""
+
         class Mute:  # pylint: disable=too-few-public-methods
             """Engine stub that answers snapshots but knows no actions."""
 
@@ -258,6 +275,7 @@ class TestErrorPaths(unittest.TestCase):
 
     def test_non_dict_state_is_ignored(self) -> None:
         """A malformed snapshot must not reach the widgets."""
+
         class Odd(FakeEngine):
             """Engine returning a list where a dict is documented."""
 

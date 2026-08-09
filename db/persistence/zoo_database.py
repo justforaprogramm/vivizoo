@@ -719,5 +719,7 @@ class ZooDatabase(AbstractPersistence):
             2. On an empty database ``count_rows(Event)`` returns ``0``.
         """
         with self._session_factory() as session:
-            count = select(func.count()).select_from(model)  # pylint: disable=not-callable
+            count = select(func.count()).select_from(
+                model
+            )  # pylint: disable=not-callable
             return int(session.scalar(count) or 0)

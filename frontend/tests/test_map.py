@@ -130,8 +130,14 @@ class TestEnclosureItem(unittest.TestCase):
     def _item(self) -> EnclosureItem:
         """Build one savanna enclosure with capacity 5."""
         return EnclosureItem(
-            enclosure_id="e_01", name="Savanne 1", biome="savanna",
-            x=0.0, y=0.0, w=100.0, h=80.0, capacity=5,
+            enclosure_id="e_01",
+            name="Savanne 1",
+            biome="savanna",
+            x=0.0,
+            y=0.0,
+            w=100.0,
+            h=80.0,
+            capacity=5,
         )
 
     def test_clean_enclosure_has_a_dashed_border(self) -> None:
@@ -210,9 +216,7 @@ class TestZooScene(unittest.TestCase):
         """A moving animal keeps its sprite object."""
         self.scene.update_entities(state_with_animals({"id": "a_01"}))
         first = self.scene.animal_sprite("a_01")
-        self.scene.update_entities(
-            state_with_animals({"id": "a_01", "x": 400.0})
-        )
+        self.scene.update_entities(state_with_animals({"id": "a_01", "x": 400.0}))
         self.assertIs(self.scene.animal_sprite("a_01"), first)
 
     def test_lookup_of_an_unknown_id_returns_none(self) -> None:
@@ -231,9 +235,7 @@ class TestZooScene(unittest.TestCase):
         self.scene.apply_lighting("NIGHT")
         self.scene._lighting_anim.stop()
         self.scene.apply_lighting("NIGHT")
-        self.assertEqual(
-            self.scene._lighting_anim.state().value, 0  # still stopped
-        )
+        self.assertEqual(self.scene._lighting_anim.state().value, 0)  # still stopped
 
     def test_unknown_phase_uses_the_open_fallback(self) -> None:
         """A phase the frontend does not know must not blank the map."""
@@ -259,9 +261,14 @@ class TestZooView(unittest.TestCase):
         for _ in range(steps):
             self.view.wheelEvent(
                 QWheelEvent(
-                    QPointF(10.0, 10.0), QPointF(10.0, 10.0), QPoint(), delta,
-                    Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier,
-                    Qt.ScrollPhase.NoScrollPhase, False,
+                    QPointF(10.0, 10.0),
+                    QPointF(10.0, 10.0),
+                    QPoint(),
+                    delta,
+                    Qt.MouseButton.NoButton,
+                    Qt.KeyboardModifier.NoModifier,
+                    Qt.ScrollPhase.NoScrollPhase,
+                    False,
                 )
             )
 
@@ -283,6 +290,7 @@ class TestZooView(unittest.TestCase):
         """Qt may hand out None; that must not raise."""
         self.view.wheelEvent(None)
         self.view.mousePressEvent(None)
+
 
 class TestAmbientParticle(unittest.TestCase):
     """The decorative dust motes: drift speed and the wrap-around."""

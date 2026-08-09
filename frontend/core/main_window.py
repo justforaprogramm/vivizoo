@@ -95,7 +95,6 @@ from frontend.ui.status_chip import StatusChip
 from frontend.ui.alert_banner import AlertBanner
 from frontend.ui.help_dialog import SHORTCUTS, HelpDialog
 
-
 _ALERT_MARGIN = 10  # inset of the alert overlay from the map's top-left
 _ALERT_HEIGHT = 28
 
@@ -236,7 +235,7 @@ class ZooMainWindow(QMainWindow):
 
         Returns:
             None.
-        
+
         Tests:
             - test_central_widget_exists: Call it; verify centralWidget() is set.
             - test_score_label_starts_hidden: Call it; verify the floating feedback
@@ -345,7 +344,7 @@ class ZooMainWindow(QMainWindow):
 
         Returns:
             QFrame: The assembled bar widget.
-        
+
         Tests:
             - test_bar_has_fixed_height: Verify the returned frame is 30 px high.
             - test_all_finance_chips_present: Verify the budget, revenue, expense
@@ -520,7 +519,7 @@ class ZooMainWindow(QMainWindow):
 
         Returns:
             QFrame: The assembled bar widget.
-        
+
         Tests:
             - test_status_label_present: Verify the status label was created.
             - test_population_chips_present: Verify the animal, visitor and
@@ -571,7 +570,7 @@ class ZooMainWindow(QMainWindow):
 
         Returns:
             QPushButton: The styled, connected button.
-        
+
         Tests:
             - test_button_starts_in_running_style: Verify the label reads
               "⏸ Pause".
@@ -590,7 +589,7 @@ class ZooMainWindow(QMainWindow):
 
         Returns:
             QPushButton: The styled, connected button.
-        
+
         Tests:
             - test_button_starts_at_one: Verify the label reads "🏃 1×".
             - test_click_cycles_speed: Click once; verify the controller speed is
@@ -618,7 +617,7 @@ class ZooMainWindow(QMainWindow):
 
         Returns:
             str: A QSS snippet — green while running, red while paused.
-        
+
         Tests:
             - test_running_style_is_green: Call with running=True; verify the
               snippet contains the accent colour.
@@ -650,7 +649,7 @@ class ZooMainWindow(QMainWindow):
 
         Returns:
             None.
-        
+
         Tests:
             - test_enclosure_callbacks_registered: Call it; verify clicking an
               enclosure item selects it.
@@ -784,7 +783,7 @@ class ZooMainWindow(QMainWindow):
 
         Returns:
             None.
-        
+
         Tests:
             - test_new_sprites_get_callbacks: Add an animal, run a frame; verify
               its hover callback is set.
@@ -877,7 +876,7 @@ class ZooMainWindow(QMainWindow):
 
         Returns:
             None.
-        
+
         Tests:
             - test_scene_receives_state: Call with a snapshot; verify the scene
               created the matching sprites.
@@ -1052,9 +1051,7 @@ class ZooMainWindow(QMainWindow):
         else:
             self._chip_animals.set_accent(C_ACCENT_GLOW)
         label = f"{alive}" + (f" (+{dead} tot)" if dead else "")
-        self._chip_animals.set_value(
-            f"{label} / {capacity}" if capacity else label
-        )
+        self._chip_animals.set_value(f"{label} / {capacity}" if capacity else label)
 
         self._chip_visitors.set_value(str(len(visitors)))
 
@@ -1159,7 +1156,7 @@ class ZooMainWindow(QMainWindow):
 
         Returns:
             None.
-        
+
         Tests:
             - test_animal_selection_shows_animal_form: Select an animal; verify
               the animal form is visible.
@@ -1368,7 +1365,9 @@ class ZooMainWindow(QMainWindow):
         success = result.get("success", False)
 
         icon = "✅" if success else "❌"
-        self._chip_action.set_value(f"{icon} {message}" if message else f"{icon} {action}")
+        self._chip_action.set_value(
+            f"{icon} {message}" if message else f"{icon} {action}"
+        )
         self._chip_action.set_accent(C_ACCENT_GLOW if success else C_RED_GLOW)
         self._lbl_status.setText(f"{icon} {message}" if message else f"{icon} {action}")
         self._last_action_msg = message or None
@@ -1532,9 +1531,7 @@ class ZooMainWindow(QMainWindow):
         paused = self._controller.toggle_pause()
         self._btn_pause.setText("▶ Start" if paused else "⏸ Pause")
         self._btn_pause.setStyleSheet(self._pause_qss(running=not paused))
-        self._lbl_status.setText(
-            "⏸ Pausiert" if paused else "🟢 Läuft"
-        )
+        self._lbl_status.setText("⏸ Pausiert" if paused else "🟢 Läuft")
 
     def _cycle_speed(self) -> None:
         """Step to the next simulation speed and update the button label.

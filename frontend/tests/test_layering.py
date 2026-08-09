@@ -71,16 +71,12 @@ class TestFileStructure(unittest.TestCase):
     """One class per file, and every file names its owner."""
 
     def test_at_most_one_class_per_module(self) -> None:
-        """"Eine Aufgabe, eine Datei" — enforced, not just claimed."""
+        """ "Eine Aufgabe, eine Datei" — enforced, not just claimed."""
         for path in _PRODUCTION:
             classes = [
-                node.name
-                for node in _tree(path).body
-                if isinstance(node, ast.ClassDef)
+                node.name for node in _tree(path).body if isinstance(node, ast.ClassDef)
             ]
-            self.assertLessEqual(
-                len(classes), 1, f"{path.name} declares {classes}"
-            )
+            self.assertLessEqual(len(classes), 1, f"{path.name} declares {classes}")
 
     def test_every_module_names_its_owner(self) -> None:
         """The submission rules make a missing owner a deduction."""
