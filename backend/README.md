@@ -205,7 +205,16 @@ Field names (species keys `"lion"`/`"giraffe"`/`"penguin"`, `FoodType` resources
 
 ## Documentation
 
-* `docs/class_diagram.md` — Mermaid UML class diagram of the domain.
-* `docs/sequence_diagrams.md` — Mermaid sequence diagrams (tick loop, action, persistence).
-* `docs/api.md` — the frontend-facing API contract and data shapes.
-* `docs/test_plan.md` — distributed test expectations (each method's `Tests:` docstring) and how to turn them into unit tests (see the **Tests** section above for the concrete structure and boundary conditions).
+All design and API documentation for the backend lives in [`backend/docs/`](docs/). Each file exists for a distinct reason — below, every file is named and *why* it is there is explained.
+
+### [`docs/class_diagram.md`](docs/class_diagram.md) — design visualisation (Mermaid)
+**Why it is there:** the assignment requires a comprehensive, focus-specific **UML class diagram** that visualises the object-oriented design (design visualisation criterion). This file contains the Mermaid `classDiagram` of the backend domain. It shows the full inheritance hierarchy (`Animal` → `Lion`/`Giraffe`/`Penguin`, `Employee` → `Keeper`/`Veterinarian`/`AdminStaff`, `Behaviour` → `FeedingBehaviour`/`RestingBehaviour`/`StatefulBehaviour`), the composition of the `Zoo` aggregate root, the aggregation relationships (`Enclosure o-- Animal`, `Zoo o-- Visitor`) and the associations. Its purpose is to let a reader grasp the whole model (classes, attributes, methods, access modifiers) in one picture.
+
+### [`docs/sequence_diagrams.md`](docs/sequence_diagrams.md) — design visualisation (Mermaid)
+**Why it is there:** the assignment allows sequence diagrams in addition to the class diagram (design visualisation criterion). This file contains three Mermaid `sequenceDiagram`s that describe the *runtime behaviour* the class diagram cannot show: (1) the **tick loop** — how `SimulationEngine.tick()` advances the whole zoo; (2) a **player action** ("God mode") — how `execute_action("feed_all")` flows from the frontend through the `ActionHandler` to the `Zoo`/`Inventory`/`Animal`; (3) the **day-end persistence** — the single seam between the backend, the `DbGateway` and `AbstractPersistence`.
+
+### [`docs/api.md`](docs/api.md) — the frontend↔backend contract
+**Why it is there:** the frontend module must talk to exactly one object (`SimulationEngine`) without ever seeing the internals. This file is the **API contract**: every method the UI may call, its parameters, and the exact shapes of the returned data (`get_game_state`, `get_entity_info`, `get_chat_messages`, `execute_action`, `get_stats`, …). It exists so that the frontend team can implement against a fixed interface while the backend can evolve internally, and it must stay in sync whenever the backend API changes.
+
+### [`docs/test_plan.md`](docs/test_plan.md) — test descriptions (not implemented)
+**Why it is there:** the assignment requires that every function has **at least two described test cases, without implementing them**. This file consolidates the `Tests:` blocks found in each docstring into a single overview and states *where, what and with which boundary conditions* each test target should be tested (one production module → one test file in `backend/tests/`). It exists so the reader can review the test coverage in one place instead of reading every source file, and it connects to the concrete fixture/boundary guidance in the **Tests** section above.
