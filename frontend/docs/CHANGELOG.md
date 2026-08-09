@@ -1621,3 +1621,50 @@ code fences:  all paired               Mermaid blocks:  9, intact
 ```
 
 ### No changes to `backend/` or `db/`.
+
+---
+
+## 2026-08-09 (after the `develop` merge) — A shared config file breaks in two places
+
+Merging `develop` brought the backend's `.pylintrc` together with the
+frontend's. Both branches had added an `ignored-modules` entry, so the merged
+`[MAIN]` section contained the key twice. `configparser` refuses a duplicate
+key, so pylint aborted reading the file altogether:
+
+```
+.pylintrc:1:0: F0011: error while parsing the configuration:
+  option 'ignored-modules' in section 'MAIN' already exists
+Your code has been rated at 9.06/10 (previous run: 10.00/10, -0.94)
+```
+
+**Nothing about the code had changed.** With no configuration, pylint fell
+back to its defaults: 43 × `E0401` because `ignored-modules` was gone, and
+10 × `invalid-name` for the Qt overrides. What survived were the inline
+waivers in the source files — they are attached to the code, not to the
+config, so not a single `R`-message reappeared. Duplicate block removed,
+back to 10.00/10.
+
+**The merge also relaxed the shared rules.** The backend's configuration
+disables `too-few-public-methods`, `protected-access`, `unused-argument`,
+`import-outside-toplevel` and `invalid-name` project-wide, and raises
+`max-attributes` to 25, `max-args` to 12. Measured consequence for the
+frontend:
+
+```bash
+pylint --enable=useless-suppression frontend/ | grep -c I0021   # 11 of 25
+```
+
+Eleven waivers are now redundant. They stay. A waiver states two things —
+the suppression and the reason — and only the first one has become
+unnecessary. `ZooScene` holds eight fields because it manages three sprite
+registries, a particle list and the four parts of the lighting; that sentence
+is worth the same whether `max-attributes` happens to be 7 or 25 today. And
+if the shared file is tightened again, the frontend stays clean without
+anyone having to rediscover why.
+
+Documentation follows: `test_plan.md` §8.2 now describes the merged
+configuration instead of the frontend-only one, and says plainly that exactly
+one of its lines comes from this module. §8.4.1, §8.4.6 and the tally in
+§8.5 carry the new measurement.
+
+### No changes to `backend/` or `db/`.

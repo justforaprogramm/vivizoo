@@ -374,26 +374,57 @@ switching checks off. What the restructurings were is in §8.3.
 ### 8.2 The change to `.pylintrc`
 
 `.pylintrc` sits in the root directory because pylint looks for its
-configuration in the working directory — so it applies to all three modules.
-It already existed before this round (commit `810c5e6`) with three entries:
-
-```ini
-extension-pkg-allow-list = PyQt6,PyQt6.QtCore,PyQt6.QtGui,PyQt6.QtWidgets
-disable = no-name-in-module, invalid-name
-max-line-length = 120
-```
-
-`no-name-in-module` is unavoidable with PyQt6 (the names live in a
-C extension); `invalid-name` concerns Qt's `camelCase` methods, which must not
-be renamed when overriding them — `paintEvent`, `hoverEnterEvent`,
-`mousePressEvent`. Both are disabled project-wide and do not stem from
-this round; they are listed here for completeness anyway.
-
-**Exactly one line has been added:**
+configuration in the working directory — so it applies to all three modules,
+and all three modules have written into it. **Exactly one line of it comes
+from the frontend:**
 
 ```ini
 ignored-modules=PyQt6
 ```
+
+Everything else in the file was contributed by the backend module. After
+merging `develop` it reads:
+
+```ini
+[MESSAGES CONTROL]
+disable = too-few-public-methods, protected-access, unused-argument,
+          import-outside-toplevel, invalid-name, no-name-in-module
+
+[DESIGN]
+max-args = 12 · max-positional-arguments = 12
+max-attributes = 25 · max-locals = 20
+```
+
+Two of those are unavoidable with PyQt6 in any case: `no-name-in-module`
+(the names live in a C extension) and `invalid-name` (Qt's `camelCase`
+methods must keep their name when overridden — `paintEvent`,
+`hoverEnterEvent`, `mousePressEvent`). The rest are the backend's decisions,
+not the frontend's.
+
+> **Consequence for §8.4, measured rather than assumed.** The relaxed limits
+> make **11 of the 25 waivers in the frontend redundant** — everything that
+> only silenced `protected-access`, an attribute count below 25 or an
+> argument count below 12. They are deliberately kept: each one carries the
+> *reason* the class has that shape, not just the suppression, and they keep
+> the frontend clean if the shared configuration is ever tightened again.
+> Reproduce it with:
+>
+> ```bash
+> pylint --enable=useless-suppression frontend/
+> ```
+>
+> Still load-bearing under the merged configuration: `too-many-lines` and
+> the 40 attributes of `ZooMainWindow` (above the raised limit of 25), plus
+> the four `no-member` lines of the sprite mixin.
+
+**The merge also broke the file once.** Both branches had added an
+`ignored-modules` entry, so the merged `[MAIN]` section contained the key
+twice — `configparser` refuses that, pylint reported
+`F0011: error while parsing the configuration` and fell back to its
+defaults. The rating dropped from 10.00 to 9.06, and every `E0401` and
+`invalid-name` came back, although nothing about the code had changed.
+Worth remembering: a linter config is shared state between modules, and a
+merge conflict in it fails loudly in one place and silently everywhere else.
 
 PyQt6 is a C extension and lives in the project environment
 (`frontend/requirements.txt`). If pylint is installed as a **global tool** —
@@ -480,6 +511,11 @@ item stack). The alternative to `window._lbl_status.text()` would be a
 pixel comparison — and that checks Qt, not our code
 (§4 of this document).
 
+Since the `develop` merge these three lines are redundant: the shared
+`.pylintrc` disables `protected-access` project-wide (§8.2). They stay,
+because they say *why* these tests reach into private state — a global
+switch does not.
+
 #### 8.4.2 `no-member` in `ui/animal_sprite_base.py` — 4 lines
 
 `AnimalSpriteBase` is a mixin class: the Qt base is only mixed in by the
@@ -548,9 +584,14 @@ frontend/ui/action_panel.py:47:0: I0021: Useless suppression of ...
 frontend/core/main_window.py:142:0: I0021: Useless suppression of ...
 ```
 
-Exactly these four — and **only** these four — are superfluous as soon as pylint
-can see Qt. Every other exception in §8.4 is needed in both environments,
-so it carries a real decision and not an environment error.
+Exactly these four — and **only** these four — were superfluous as soon as
+pylint could see Qt, back when the frontend was the only module writing to
+`.pylintrc`.
+
+Since the `develop` merge that count is higher: the backend's configuration
+disables `too-few-public-methods` project-wide and raises `max-attributes` to
+25, which makes **11 of the 25 waivers redundant** (§8.2). The measurement
+is in §8.5; the waivers stay for the reason given there.
 
 Two further places are genuinely tiny classes in the tests, not
 environment artefacts:
@@ -589,17 +630,27 @@ layering is meant to prevent.
 | | |
 |---|---|
 | `pylint: disable` lines in total | **25** in 15 files |
-| of those from this round | 22 (three `broad-exception-caught` already existed, §4.7) |
-| of those needed only because of the linter environment | 4 (§4.6) |
+| of those from this round | 22 (three `broad-exception-caught` already existed, §8.4.7) |
 | of those Qt peculiarities: attribute count, mixin, arguments, file length | 12 |
-| of those deliberate test practice | 3 modules (§4.1) + 2 test classes |
+| of those deliberate test practice | 3 modules (§8.4.1) + 2 test classes |
+| **redundant since the `develop` merge, kept on purpose** | **11** |
+| still load-bearing under the merged configuration | 14 |
 | messages that instead disappeared through restructuring | 44 |
 
-For anyone who wants to check whether something has been hidden here:
+Both numbers are measurable, not estimated:
 
 ```bash
 grep -rn "# pylint: disable" frontend/ --include="*.py" | wc -l   # 25
+pylint --enable=useless-suppression frontend/ | grep -c I0021      # 11
 ```
 
-Each of these 25 lines is explained in §8.4, and each carries its
+Why keep something the linter no longer needs? Because a waiver states two
+things, and only one of them is the suppression. `ZooScene` holds eight
+fields *because* it manages three sprite registries, a particle list and the
+four parts of the lighting — that sentence is worth reading whether or not
+`max-attributes` currently happens to be 25. And if the shared configuration
+is tightened again, the frontend stays at 10.00 without anyone having to
+rediscover the reasons.
+
+Each of the 25 lines is explained in §8.4, and each carries its
 justification as a comment directly above it in the code.
