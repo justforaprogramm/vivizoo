@@ -116,8 +116,7 @@ end there were 19 wrong numbers in our own documents, and four of them made
 the project look worse than it is — the README claimed 403 test descriptions,
 the real number is 482.
 
-Commit more often. Two days of work, 24 files not in git.
-
+Commit more often. Two days of work, 24 files not in git lol.
 ---
 
 *Part of the submission; graded under "Reflexion & KI-Einsatz" (5 points).*
