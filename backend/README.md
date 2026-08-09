@@ -104,27 +104,33 @@ This module provides no finished tests, but the framework. The expectations for 
 
 ### Structure of the test folder
 
-The folder `backend/tests/` is sensibly built **mirroring the production code** — one test file per production module, with a shared fixture module for the recurring setup logic:
+The folder `backend/tests/` **should be built mirroring the production code** — one test file per production module, with a shared fixture module for the recurring setup logic. It is not part of this module (writing the tests is the exercise); this is the layout to create:
 
 ```
 backend/tests/
-├── __init__.py           # makes the folder a package (imports from backend.*)
-├── conftest.py           # shared pytest fixtures (e.g. a fresh Zoo instance)
-├── test_animal.py        # tests for backend/core/animal.py (chapter 2: animal simulation)
-├── test_employee.py      # tests for backend/core/employee.py (chapter 1: staff)
-├── test_enclosure.py     # tests for backend/core/enclosure.py
-├── test_zoo.py           # tests for the aggregate backend/core/zoo.py
-├── test_engine.py        # tests for the tick loop and the ActionHandler
-├── test_finances.py      # tests for backend/core/finances.py (budgets)
-├── test_inventory.py     # tests for backend/core/inventory.py (stock)
-├── test_environment.py   # tests for backend/core/environment.py (weather)
-├── test_status_effect.py # tests for backend/core/status_effect.py
-└── test_persistence.py   # tests for backend/persistence/db_gateway.py (database connection)
+├── __init__.py               # makes the folder a package (imports from backend.*)
+├── conftest.py               # shared pytest fixtures (e.g. a fresh Zoo instance)
+├── test_action_handler.py    # backend/core/action_handler.py (God mode)
+├── test_animal.py            # backend/core/animal.py (chapter 2: animal simulation)
+├── test_behaviour.py         # backend/core/behaviour.py (strategy pattern)
+├── test_demo.py              # backend/demo.py (smoke test)
+├── test_employee.py          # backend/core/employee.py (chapter 1: staff)
+├── test_enclosure.py         # backend/core/enclosure.py
+├── test_engine.py            # backend/core/engine.py (tick loop)
+├── test_environment.py       # backend/core/environment.py (weather)
+├── test_event_scheduler.py   # backend/core/event_scheduler.py
+├── test_finances.py          # backend/core/finances.py (budgets)
+├── test_inventory.py         # backend/core/inventory.py (stock)
+├── test_message_logger.py    # backend/core/message_logger.py (singleton chat feed)
+├── test_persistence.py       # backend/persistence/db_gateway.py (database connection)
+├── test_status_effect.py     # backend/core/status_effect.py
+├── test_visitor.py           # backend/core/visitor.py
+└── test_zoo.py               # the aggregate backend/core/zoo.py
 ```
 
 Guidelines for the structure:
 
-* **One production module, one test file** — so the mapping stays unambiguous and it is immediately visible which reality a test covers.
+* **One production module, one test file** — so the mapping stays unambiguous and it is immediately visible which reality a test covers. The list above covers every production module; none is left without a home.
 * **`conftest.py`** keeps the setup code (build a zoo, reset the logger, create the engine) as fixtures instead of duplicating it in every test file. Examples are shown further down.
 * **Test names speak the *behaviour*, not the implementation:** `test_feed_reduces_hunger` instead of `test_feed`.
 * Every test file starts with a short docstring that names the chapter/area (e.g. "Chapter 2: animal simulation").
@@ -141,12 +147,14 @@ The backend covers the three OOP pillars of the assignment — the tests are ori
 
 Concretely per module:
 
-* **animal.py** — species discriminator, `feed`/`rest`/`age_one_day`/`move`, hunger increase over ticks, death after 3 starved days, value clamping.
+* **animal.py** — species discriminator, `feed`/`rest`/`age_one_day`/`move`, hunger increase over ticks, death after 3 starvation updates, value clamping.
+* **behaviour.py** — the strategy pair: a hungry animal picks `feed` by day, every animal picks `rest` at night; `Animal.act()` takes the first non-idle answer.
 * **employee.py** — each role fulfils its core task in the zoo (Keeper feeds/cleans, Veterinarian heals, Admin sets the ticket price).
-* **enclosure.py** — `free_slots`, `is_full`, `clean`, `average_welfare`, cleanliness decay.
-* **zoo.py** — create and find enclosures/animals/staff, daily snapshot, `to_game_state` shape, visitors pay a ticket.
+* **enclosure.py** — `free_slots`, `is_full`, `clean`, `average_welfare`, cleanliness decay (driven by `Zoo.update_animals`) bottoming out at `0.0`.
+* **zoo.py** — create and find enclosures/animals/staff, daily snapshot, `to_game_state` shape, visitors pay a ticket, `begin_new_day` ages every animal.
 * **engine.py** — tick counts up; `execute_action` mutates the zoo; an unknown action raises `ValueError`; `get_entity_info` returns `{}` for an unknown id.
-* **persistence.py** — through an in-memory `ZooDatabase(":memory:")`: after one finished day exactly one `DailyStats` entry is readable; the events share the `day_id`.
+* **visitor.py / message_logger.py / event_scheduler.py** — visitor lifetime and `to_dict`; the logger singleton, its `MAX_BUFFER` cap and the draining semantics; the event chance bounds `0.0`/`1.0`.
+* **persistence/db_gateway.py** — through an in-memory `ZooDatabase(":memory:")`: after one finished day exactly one `DailyStats` entry is readable; the events share the `day_id`.
 
 ### Important boundary conditions for individual tests
 
@@ -158,6 +166,9 @@ Concretely per module:
 * **Determinism of randomness.** Movement, weather and visitor spawns are random. Tests for them must **not check fixed values** on coordinates, only invariants ("within a range", "a valid weather"). Where possible use `random.seed(...)` or deliberately set the random component (e.g. `_update_offset`) to `0` so the throttled update fires immediately.
 * **Tick boundaries.** Many flows are throttled (hunger every N ticks, Veterinarian from ~20, the day closes at `tick % 480 == 0`). A test of the day close must let the engine run exactly **one full round** (`for _ in range(TICKS_PER_DAY): engine.tick()`), otherwise no day is ever closed and persistence returns 0 rows.
 * **Hunger semantics.** Hunger is `0 = full` / `100 = starving`. A "feed" test therefore starts an animal hungry (e.g. `_hunger = 70.0`), otherwise it is not fed because `hunger < threshold` holds.
+* **Stock the inventory.** `Inventory` starts **empty** for every food type. Any feeding test (`feed_all`, `feed_one`, the Keeper) must call `zoo.inventory.add(FoodType.MEAT, …)` first, otherwise nothing is consumed and no animal is fed.
+* **Starvation counts updates, not days.** `days_starved` climbs once per *hunger update* (`TICKS_PER_HUNGER_UPDATE`), not once per simulation day. A lion with `_update_offset = 0` dies after roughly 530 ticks — do not budget 3 × 480 for it.
+* **The chat buffer is shared.** `engine.get_chat_messages()` and `DbGateway.save_daily_summary()` drain the *same* singleton buffer. A persistence test must not poll the chat during the day, or it will find 0 events stored.
 * **No side effects on real data.** Budget, inventory and random tests build their objects freshly. The persistence tests use `ZooDatabase(":memory:")` and close it at the end (`storage.close()`).
 * **Respect encapsulation.** Where possible do not write private attributes (`_hp` etc.) in tests; where this is unavoidable (e.g. when pre-setting hunger), mark it in a comment.
 * **Each test checks one thing.** A failure should have a single cause; hence one assertion or one coherent scenario per test.
@@ -166,6 +177,7 @@ Concretely per module:
 
 ```python
 import pytest
+from db.interface.enums import FoodType
 from backend.core.message_logger import MessageLogger
 from backend.core.zoo import Zoo
 
@@ -174,6 +186,8 @@ def zoo():
     MessageLogger.reset_to_fresh()
     z = Zoo(name="Test Zoo", logger=MessageLogger.instance())
     savanna = z.add_enclosure("Savanna 1", "savanna", capacity=8)
+    # The inventory starts EMPTY -- without stock feed_all feeds nobody.
+    z.inventory.add(FoodType.MEAT, 10)
     return z, savanna
 
 @pytest.fixture

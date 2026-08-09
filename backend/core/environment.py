@@ -63,6 +63,7 @@ class EnvironmentFactor:
 
         Tests:
             1. ``"sun"`` gives ``0.0`` and ``"rain"`` gives a negative value.
+            2. ``"cloudy"`` gives ``-1.0``, a milder penalty than ``"rain"``.
         """
         return {"sun": 0.0, "rain": -3.0, "cloudy": -1.0}[self.weather]
 
@@ -77,6 +78,7 @@ class EnvironmentFactor:
 
         Tests:
             1. Rain lowers the visitor spawn factor below ``1.0``.
+            2. Both ``"sun"`` and ``"cloudy"`` return the neutral ``1.0``.
         """
         return 0.6 if self.weather == "rain" else 1.0
 
@@ -91,6 +93,7 @@ class EnvironmentFactor:
 
         Tests:
             1. After the call the weather is one of :attr:`WEATHERS`.
+            2. The temperature moves by at most ``2.0`` degrees per call.
         """
         self.weather = random.choice(self.WEATHERS)
         self.temperature += random.uniform(-2.0, 2.0)
@@ -103,6 +106,12 @@ class EnvironmentFactor:
 
         Returns:
             dict: With ``weather`` and ``temperature``.
+
+        Tests:
+            1. The result holds exactly the keys ``weather`` and
+               ``temperature``.
+            2. ``temperature`` is rounded to one decimal, so ``20.04`` is
+               reported as ``20.0``.
         """
         return {
             "weather": self.weather,

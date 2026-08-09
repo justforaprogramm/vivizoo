@@ -76,6 +76,8 @@ class StatefulBehaviour(Behaviour):
 
         Tests:
             1. A fresh behaviour has empty ``_state``.
+            2. Two instances of a concrete subclass own independent
+               ``_state`` dicts, so writing to one leaves the other empty.
         """
         self._state: dict = {}
 
@@ -92,6 +94,8 @@ class StatefulBehaviour(Behaviour):
 
         Tests:
             1. After storing state and calling ``reset()`` the state is empty.
+            2. ``reset()`` on an already empty behaviour is a no-op and keeps
+               the same ``_state`` dict object (it is cleared in place).
         """
         self._state.clear()
 

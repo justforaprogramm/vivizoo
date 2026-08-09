@@ -66,6 +66,13 @@ class Employee(ABC):
 
         Returns:
             None.
+
+        Tests:
+            1. Every concrete role (``Keeper``, ``Veterinarian``,
+               ``AdminStaff``) overrides this method, so a caller can work
+               through the base type alone.
+            2. ``Employee`` itself cannot be instantiated, so the abstract
+               body is never executed.
         """
 
     @property
@@ -74,6 +81,12 @@ class Employee(ABC):
 
         Returns:
             str: Lower-case class name (e.g. ``"keeper"``).
+
+        Tests:
+            1. ``Keeper("st_01", "Kurt").role`` returns ``"keeper"``.
+            2. ``AdminStaff("st_03", "Ada").role`` returns
+               ``"adminstaff"`` -- the class name lower-cased, not a
+               prettified label.
         """
         return self.__class__.__name__.lower()
 
@@ -85,6 +98,10 @@ class Employee(ABC):
 
         Returns:
             str: Named debug string.
+
+        Tests:
+            1. The string contains the ``employee_id`` and the ``name``.
+            2. It is stable across calls on an unchanged employee.
         """
         return f"<{self.__class__.__name__} {self.employee_id} ({self.name})>"
 
@@ -93,7 +110,7 @@ class Keeper(Employee):
     """Feeds hungry animals and cleans enclosures.
 
     The keeper walks the zoo once per job: it feeds any living animal whose
-    hunger has dropped below its feeding threshold (consuming the species'
+    hunger has reached its feeding threshold (consuming the species'
     preferred food from the inventory) and resets the cleanliness of every
     enclosure.
     """
@@ -109,6 +126,11 @@ class Keeper(Employee):
 
         Returns:
             None (constructor).
+
+        Tests:
+            1. A new keeper stores its id and name and takes the class
+               salary ``60.0``.
+            2. Its ``role`` reports ``"keeper"``.
         """
         super().__init__(employee_id, name, self.SALARY)
 
@@ -122,8 +144,8 @@ class Keeper(Employee):
             None.
 
         Tests:
-            1. After a job, every hungry animal was fed (if food was in
-               stock).
+            1. After a job, every animal that had reached its feeding
+               threshold was fed, provided its food was in stock.
             2. After a job, every enclosure is ``100.0`` clean.
         """
         for enclosure in zoo.enclosures:
@@ -147,12 +169,14 @@ class Keeper(Employee):
             None.
 
         Tests:
-            1. A hungry animal with matching food in stock is fed.
+            1. An animal whose hunger has reached its feeding threshold
+               (``35.0`` for a lion) is fed when matching food is in stock,
+               and one unit leaves the inventory.
             2. If stock is empty the animal is not fed.
         """
         if animal.is_dead:
             return
-        if animal.hunger > animal.get_feed_threshold():
+        if animal.hunger < animal.get_feed_threshold():
             return
         food_type = animal.PREFERRED_FOOD
         used = zoo.inventory.consume(food_type, 1)
@@ -178,6 +202,11 @@ class Veterinarian(Employee):
 
         Returns:
             None (constructor).
+
+        Tests:
+            1. A new veterinarian stores its id and name and takes the
+               class salary ``90.0``.
+            2. Its ``role`` reports ``"veterinarian"``.
         """
         super().__init__(employee_id, name, self.SALARY)
 
@@ -193,7 +222,8 @@ class Veterinarian(Employee):
             dead.
 
         Tests:
-            1. A living animal is healed and loses one status effect.
+            1. A living animal gains ``20.0`` health, and with medicine
+               in stock it also loses one status effect.
             2. A dead animal is left untouched and ``False`` is returned.
         """
         if animal.is_dead:
@@ -220,6 +250,13 @@ class Veterinarian(Employee):
 
         Returns:
             None.
+
+        Tests:
+            1. With a critical animal in an enclosure, that animal is
+               healed and the method returns without touching later
+               animals.
+            2. With no living critical animal, nothing is healed and no
+               medicine is consumed.
         """
         for enclosure in zoo.enclosures:
             for animal in enclosure.animals:
@@ -246,6 +283,11 @@ class AdminStaff(Employee):
 
         Returns:
             None (constructor).
+
+        Tests:
+            1. A new admin stores its id and name and takes the class
+               salary ``80.0``.
+            2. Its ``role`` reports ``"adminstaff"``.
         """
         super().__init__(employee_id, name, self.SALARY)
 
@@ -260,8 +302,10 @@ class AdminStaff(Employee):
 
         Tests:
             1. Higher reputation raises the ticket price.
+            2. A deeply negative reputation still yields a non-negative
+               price, because the computed base is floored at ``0.0``.
         """
-        base = 10.0 + zoo.reputation * 0.05
+        base = max(0.0, 10.0 + zoo.reputation * 0.05)
         zoo.finances.set_ticket_price(round(base, 2))
         zoo.logger.log(
             "INFO",
