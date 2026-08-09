@@ -43,6 +43,8 @@ class DbGateway:
 
         Tests:
             1. A gateway keeps its storage for later use.
+            2. Constructing a gateway performs no storage call on its own --
+               nothing is written until ``save_daily_summary`` runs.
         """
         self._persistence = persistence
 
@@ -87,6 +89,9 @@ class DbGateway:
         Tests:
             1. A ``WARNING`` log entry becomes an ``Event`` with the matching
                type and text.
+            2. A zoo whose logger holds nothing yields ``[]``, while an entry
+               whose ``message_type`` is not an ``EventType`` value (e.g.
+               ``"PANIC"``) raises ``ValueError``.
         """
         entries = zoo.logger.drain()
         events: list[Event] = []
@@ -115,6 +120,11 @@ class DbGateway:
 
         Tests:
             1. After a day was saved, at least one dict is returned.
+            2. ``fetch_stats(0)`` returns ``[]``, because ``get_stats(0)``
+               reads no rows at all.
+            3. Every returned dict carries a ``profit_loss`` key, which the
+               zoo snapshot itself never supplies -- the database computes it
+               as ``revenue - expenses``.
         """
         rows = self._persistence.get_stats(days_back)
         return [

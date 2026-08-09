@@ -248,5 +248,7 @@ class MessageLogger:
 
         Tests:
             1. A fresh logger has length ``0``; after two logs it is ``2``.
+            2. After ``drain()`` the length is ``0`` again, and it never
+               exceeds :attr:`MAX_BUFFER` (``500``) however often you log.
         """
         return len(self._pending)

@@ -24,6 +24,8 @@ class StatusEffect:
         tick_interval (int): How often the effect acts (every N ticks).
         hp_drain (float): Health points drained each time the effect acts.
         remaining_ticks (int): How many more ticks the effect lasts.
+        offset (int): Phase offset so several effects do not all fire on the
+            same tick; defaults to ``0``.
 
     Attributes:
         name (str): Display name of the effect.
@@ -40,6 +42,7 @@ class StatusEffect:
         tick_interval: int,
         hp_drain: float,
         remaining_ticks: int,
+        offset: int = 0,
     ) -> None:
         """Create a status effect with the given parameters.
 
@@ -48,6 +51,8 @@ class StatusEffect:
             tick_interval (int): Activation interval in ticks; must be positive.
             hp_drain (float): Health drained per activation.
             remaining_ticks (int): Lifespan in ticks; may be zero.
+            offset (int): Phase offset so several effects on one animal do
+                not all fire on the same tick. Defaults to ``0``.
 
         Returns:
             None (constructor).
@@ -63,7 +68,7 @@ class StatusEffect:
         self.tick_interval = tick_interval
         self.hp_drain = hp_drain
         self.remaining_ticks = remaining_ticks
-        self._offset = 0
+        self._offset = offset
 
     def tick(self) -> float:
         """Advance the effect by one tick.
@@ -82,7 +87,7 @@ class StatusEffect:
         Tests:
             1. With ``tick_interval=1`` every ``tick()`` returns ``hp_drain``
                and decrements ``remaining_ticks`` by one.
-            2. With ``tick_interval=3`` and an offset of one, only every
+            2. With ``StatusEffect("X", 3, 2.0, 40, offset=1)`` only every
                third ``tick()`` returns ``hp_drain``; the others return
                ``0.0``.
         """
@@ -117,5 +122,11 @@ class StatusEffect:
 
         Returns:
             str: A short string naming the effect and its remaining time.
+
+        Tests:
+            1. ``repr(StatusEffect("Poisoned", 5, 2.0, 40))`` contains
+               ``"Poisoned"`` and ``"remaining=40"``.
+            2. Calling ``repr()`` twice on an untouched effect yields the same
+               string.
         """
         return f"<StatusEffect {self.name} remaining={self.remaining_ticks}>"

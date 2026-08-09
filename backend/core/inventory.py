@@ -44,6 +44,8 @@ class Food:
 
         Tests:
             1. A fresh item never spoils in the current phase.
+            2. ``Food(FoodType.MEAT, -1, 0)`` raises ``ValueError`` and no
+               item is created.
         """
         if amount < 0:
             raise ValueError(f"amount must not be negative, got {amount}.")
@@ -62,6 +64,7 @@ class Food:
 
         Tests:
             1. Always returns ``False`` regardless of age for now.
+            2. The call leaves ``amount`` and ``purchase_tick`` untouched.
         """
         # Spoilage is a phase-2 feature; the field exists to keep the shape.
         return False
@@ -74,6 +77,11 @@ class Food:
 
         Returns:
             str: Named debug string.
+
+        Tests:
+            1. ``repr(Food(FoodType.MEAT, 3, 0))`` contains the food-type
+               value and the amount, giving ``<Food MEAT x3>``.
+            2. It is stable across calls on an unchanged item.
         """
         return f"<Food {self.food_type.value} x{self.amount}>"
 
@@ -107,6 +115,7 @@ class Inventory:
 
         Tests:
             1. A fresh inventory has zero for every food type.
+            2. ``MEDICINE`` is already a key of the stock map, also at ``0``.
         """
         self._stock: dict[FoodType, int] = {food_type: 0 for food_type in FoodType}
 
@@ -118,6 +127,11 @@ class Inventory:
 
         Returns:
             int: Units in stock, never negative.
+
+        Tests:
+            1. On a fresh inventory ``stock_of(FoodType.FISH)`` returns
+               ``0``.
+            2. After ``add(FoodType.FISH, 4)`` the same call returns ``4``.
         """
         return self._stock[food_type]
 
@@ -169,6 +183,12 @@ class Inventory:
 
         Returns:
             float: Price per unit.
+
+        Tests:
+            1. ``price_of(FoodType.PLANTS)`` returns ``5.0``, the cheapest
+               entry of ``FOOD_PRICES``.
+            2. A key that is not listed in ``FOOD_PRICES`` falls back to
+               ``0.0`` instead of raising.
         """
         return self.FOOD_PRICES.get(food_type, 0.0)
 
@@ -186,6 +206,8 @@ class Inventory:
 
         Tests:
             1. Keys match ``FoodType`` values.
+            2. A fresh inventory renders one entry per ``FoodType``, each
+               with value ``0``.
         """
         return {food_type.value: amount for food_type, amount in self._stock.items()}
 
@@ -197,5 +219,10 @@ class Inventory:
 
         Returns:
             str: Named debug string.
+
+        Tests:
+            1. The string starts with ``<Inventory`` and contains the same
+               mapping that ``to_dict()`` returns.
+            2. It is stable across calls while the stock is unchanged.
         """
         return f"<Inventory {self.to_dict()}>"

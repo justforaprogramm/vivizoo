@@ -49,6 +49,8 @@ classDiagram
         -_revenue_today: float
         -_expenses_today: float
         -_deaths_today: int
+        -_visitors_snapshot: int
+        -_deaths_snapshot: int
         +add_enclosure(name, biome, capacity, cleanliness) Enclosure
         +add_employee(employee) void
         +add_animal(species, name, enclosure) Animal
@@ -58,7 +60,7 @@ classDiagram
         +all_animals() list~Animal~
         +average_welfare() float
         +average_happiness() float
-        +update_animals(tick) void
+        +update_animals(tick, is_night) void
         +update_visitors(gate) void
         +update_staff(tick) void
         +begin_new_day() void
@@ -92,7 +94,7 @@ classDiagram
         +days_starved: int
         +status_effects: list~StatusEffect~
         +get_feed_threshold() float
-        +tick_update(tick_counter) void
+        +tick_update(tick_counter, is_night) void
         +feed(amount) void
         +rest() void
         +age_one_day() void

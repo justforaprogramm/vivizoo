@@ -146,6 +146,12 @@ class Animal(ABC):
 
         Returns:
             float: Current health value.
+
+        Tests:
+            1. A freshly built ``Lion("a_01", "Simba", 0, 0)`` reports
+               ``100.0``.
+            2. The property is read-only, so ``animal.hp = 10.0`` raises
+               ``AttributeError``.
         """
         return self._hp
 
@@ -155,6 +161,12 @@ class Animal(ABC):
 
         Returns:
             float: Current hunger value.
+
+        Tests:
+            1. A freshly built ``Penguin("a_01", "Pingu", 0, 0)`` reports
+               ``0.0``, i.e. fully fed.
+            2. On an animal constructed with ``hunger=50.0``, calling
+               ``feed(35.0)`` makes the property report ``15.0``.
         """
         return self._hunger
 
@@ -164,6 +176,11 @@ class Animal(ABC):
 
         Returns:
             float: Current welfare value.
+
+        Tests:
+            1. A freshly built animal reports ``100.0``.
+            2. After ``_recompute_welfare()`` on a fully healthy animal whose
+               hunger sits at ``100.0`` the property reports ``50.0``.
         """
         return self._welfare
 
@@ -173,6 +190,11 @@ class Animal(ABC):
 
         Returns:
             int: Count of starvation days.
+
+        Tests:
+            1. A freshly built animal reports ``0``.
+            2. Calling ``_update_hunger()`` on an animal already at
+               ``hunger == 100.0`` raises the count to ``1``.
         """
         return self._days_starved
 
@@ -182,6 +204,11 @@ class Animal(ABC):
 
         Returns:
             list[StatusEffect]: Active effects; the caller may read the list.
+
+        Tests:
+            1. A freshly built animal returns an empty list.
+            2. After ``apply_status_effect(StatusEffect("Poisoned", 1, 2.0,
+               5))`` the list holds exactly that one effect.
         """
         return self._status_effects
 
@@ -190,6 +217,11 @@ class Animal(ABC):
 
         Returns:
             float: The species' feeding threshold.
+
+        Tests:
+            1. ``Lion(...).get_feed_threshold()`` returns ``35.0``.
+            2. ``Giraffe`` returns ``50.0`` and ``Penguin`` returns ``30.0``,
+               so the value is polymorphic per species.
         """
         return self.FEED_THRESHOLD
 
@@ -197,16 +229,22 @@ class Animal(ABC):
     # Tick loop
     # ------------------------------------------------------------------
 
-    def tick_update(self, tick_counter: int) -> None:
+    def tick_update(self, tick_counter: int, is_night: bool = False) -> None:
         """Advance this animal by one simulation tick.
 
-        Movement happens every tick; hunger, welfare and status effects are
-        throttled (only the species' base updates on its own interval) and
-        staggered by :attr:`_update_offset` so hundreds of animals never all
-        update on the same tick.
+        Movement happens every tick; hunger, welfare, status effects and the
+        behaviour decision are throttled (only the species' base updates on
+        its own interval) and staggered by :attr:`_update_offset` so hundreds
+        of animals never all update on the same tick.
+
+        On each throttled update the composed :class:`Behaviour` strategies
+        decide the animal's action via :meth:`act`; a ``rest`` decision is
+        applied right away, which is how an animal recovers overnight.
 
         Args:
             tick_counter (int): Current global simulation tick.
+            is_night (bool): Whether it is currently night; handed to the
+                behaviour strategies. Defaults to ``False``.
 
         Returns:
             None.
@@ -215,6 +253,8 @@ class Animal(ABC):
             1. After enough ticks, ``hunger`` rises by ``DIGESTION_RATE`` for
                the species.
             2. While the throttled update is skipped, ``hunger`` stays put.
+            3. With ``is_night=True`` a wounded animal regains health on the
+               throttled tick, because ``act()`` returns ``rest``.
         """
         self.move()
         due = (tick_counter + self._update_offset) % self.TICKS_PER_HUNGER_UPDATE == 0
@@ -224,6 +264,8 @@ class Animal(ABC):
             self._update_hunger()
             self._apply_status_effects()
             self._recompute_welfare()
+            if self.act(tick_counter, is_night) == ACT_REST:
+                self.rest()
             self._check_starvation()
 
     def _update_hunger(self) -> None:
@@ -327,6 +369,13 @@ class Animal(ABC):
 
         Returns:
             None.
+
+        Tests:
+            1. Every concrete species overrides it, so ``Lion(...).move()``
+               shifts ``x`` and ``y`` in place and returns ``None``.
+            2. :class:`Animal` itself cannot be instantiated while this method
+               is abstract -- ``Animal("a_01", "X", 0, 0)`` raises
+               ``TypeError``.
         """
 
     def feed(self, amount: float) -> None:
@@ -362,6 +411,8 @@ class Animal(ABC):
         Tests:
             1. ``rest()`` raises a wounded animal's health by a fixed small
                amount, kept within 0--100.
+            2. A dead animal (``is_dead`` is ``True``) keeps its health
+               unchanged.
         """
         if not self.is_dead:
             self._hp = self._clamp("hp", self._hp + 5.0)
@@ -420,6 +471,8 @@ class Animal(ABC):
 
         Tests:
             1. Adding an effect puts it at the end of ``status_effects``.
+            2. Passing ``None`` raises ``ValueError`` and leaves
+               ``status_effects`` untouched.
         """
         if effect is None:
             raise ValueError("effect must not be None.")
@@ -482,6 +535,8 @@ class Animal(ABC):
 
         Tests:
             1. ``Lion(...).species_key()`` returns ``"lion"``.
+            2. ``Penguin(...).species_key()`` returns ``"penguin"``, a key
+               ``create_animal`` accepts again.
         """
         return self.__class__.__name__.lower()
 
@@ -520,6 +575,11 @@ class Animal(ABC):
 
         Returns:
             str: Named debug string.
+
+        Tests:
+            1. The string contains the id and the name, e.g.
+               ``<Lion a_01 (Simba)>``.
+            2. It is stable across calls on an unchanged object.
         """
         return f"<{self.__class__.__name__} {self.animal_id} ({self.name})>"
 
@@ -532,6 +592,12 @@ class Animal(ABC):
         Returns:
             bool: ``True`` if ``other`` is an :class:`Animal` with the same
             ``animal_id``.
+
+        Tests:
+            1. Two lions built with ``animal_id="a_01"`` compare equal even
+               when their names differ.
+            2. Comparing against a non-animal such as the string ``"a_01"``
+               returns ``False``.
         """
         return isinstance(other, Animal) and other.animal_id == self.animal_id
 
@@ -540,6 +606,11 @@ class Animal(ABC):
 
         Returns:
             int: Hash of ``animal_id``.
+
+        Tests:
+            1. ``hash(animal)`` equals ``hash(animal.animal_id)``.
+            2. Two animals sharing ``"a_01"`` are equal and hash alike, so
+               adding both to a ``set`` leaves one element.
         """
         return hash(self.animal_id)
 
@@ -564,6 +635,12 @@ class Lion(Animal):
 
         Returns:
             None.
+
+        Tests:
+            1. One call shifts ``x`` and ``y`` by an integer in ``-3..3``
+               each, so neither coordinate moves more than three.
+            2. The stats stay untouched -- ``hp``, ``hunger`` and ``welfare``
+               are the same before and after.
         """
         self.x += random.randint(-3, 3)
         self.y += random.randint(-3, 3)
@@ -588,6 +665,11 @@ class Giraffe(Animal):
 
         Returns:
             None.
+
+        Tests:
+            1. One call shifts ``x`` by an integer in ``-5..5``.
+            2. The vertical step is narrower: ``y`` never moves more than two
+               per call.
         """
         self.x += random.randint(-5, 5)
         self.y += random.randint(-2, 2)
@@ -612,6 +694,12 @@ class Penguin(Animal):
 
         Returns:
             None.
+
+        Tests:
+            1. One call shifts ``x`` by an integer in ``-2..4``, biased
+               forwards.
+            2. ``y`` is never changed -- the penguin waddles along the x-axis
+               only.
         """
         self.x += random.randint(-2, 4)
         self.y += 0
@@ -636,6 +724,12 @@ def known_species() -> list[str]:
 
     Returns:
         list[str]: Sorted species keys, e.g. ``["giraffe", "lion", "penguin"]``.
+
+    Tests:
+        1. It returns ``["giraffe", "lion", "penguin"]`` in alphabetical
+           order.
+        2. Every key it lists is accepted by ``create_animal``, and the same
+           keys appear in the ``ValueError`` message for an unknown species.
     """
     return sorted(_SPECIES)
 

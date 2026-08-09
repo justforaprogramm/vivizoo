@@ -29,10 +29,13 @@ sequenceDiagram
         else
             E->>Z: is_open = True
         end
-        E->>Z: update_animals(tick)
+        E->>Z: update_animals(tick, is_night)
         loop each enclosure -> each animal
-            Z->>A: tick_update(tick)
-            A->>A: move() ; (throttled) hunger/welfare/effects ; starvation check
+            Z->>Z: enclosure.tick_update(tick)  (throttled cleanliness decay)
+            Z->>A: tick_update(tick, is_night)
+            A->>A: move() ; (throttled) hunger/welfare/effects
+            A->>A: act(tick, is_night) -> behaviour strategy ; "rest" applies rest()
+            A->>A: starvation check
             alt animal died
                 Z->>L: log("ERROR", "... has died")
             else
@@ -108,7 +111,7 @@ sequenceDiagram
     participant P as AbstractPersistence (db)
 
     E->>E: _close_day()
-    E->>Z: begin_new_day()   (capture revenue/expenses, then start_new_day())
+    E->>Z: begin_new_day()   (capture revenue/expenses, start_new_day(), age every animal)
     alt persistence is attached
         E->>G: save_daily_summary(zoo)
         G->>Z: daily_snapshot()
