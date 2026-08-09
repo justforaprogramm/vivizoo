@@ -25,7 +25,22 @@ Why results stay usable after the session closes
     relationship in the models uses ``lazy="selectin"``. Objects therefore
     carry their data with them; callers never have to think about sessions.
 
+A note on the ``# pylint: disable`` comments below
+    Five of them appear in this file and they are all the same false
+    positive. SQLAlchemy builds ``sessionmaker.begin`` and the ``func.*``
+    namespace at runtime, so a static analyser cannot see members that exist
+    perfectly well when the code runs. The suppressions are per line rather
+    than per module, so a *genuine* attribute error in this file is still
+    reported.
+
 Part of the vivizoo project. Module owner: Jannes (database).
+
+Authorship:
+    Drafted with AI assistance and completed under a human-in-the-loop
+    process: every declaration in this file was read, executed and reconciled
+    with ``planning/db_planning/db_requirements.md`` before it was committed.
+    ``db/docs/ai_usage.md`` records what that review covered and the ten
+    defects it caught.
 """
 
 from __future__ import annotations
@@ -155,7 +170,7 @@ class ZooDatabase(AbstractPersistence):
                newer figures.
         """
         event_list = list(events)
-        with self._session_factory.begin() as session:
+        with self._session_factory.begin() as session:  # pylint: disable=no-member
             if not overwrite:
                 self._assert_day_is_free(session, stats.day_id)
             merged = session.merge(stats)
@@ -184,18 +199,37 @@ class ZooDatabase(AbstractPersistence):
         Returns:
             None.
 
+        Raises:
+            ValueError: If any event has no ``day_id``. Unlike
+                :meth:`save_day` there is no ``DailyStats`` to take one from,
+                so the message cannot be filed anywhere.
+
         Tests:
             1. ``append_events([Event(day_id=7, type="INFO", text="hi")])`` on
                an empty database succeeds, and ``get_events(day_id=7)``
                returns that event afterwards.
             2. ``append_events([])`` leaves the database completely
-               unchanged and issues no SQL at all.
+               unchanged and issues no SQL at all; an event whose ``day_id``
+               is ``None`` raises ``ValueError`` before any transaction opens.
         """
         event_list = list(events)
         if not event_list:
             return
 
-        with self._session_factory.begin() as session:
+        # Checked up front rather than left to the database. A missing day_id
+        # would otherwise surface as a FlushError about a "NULL identity key"
+        # halfway through the write -- a message that names neither the event
+        # nor the field that is actually missing.
+        if any(entry.day_id is None for entry in event_list):
+            raise ValueError(
+                "append_events() requires a day_id on every event; "
+                f"{sum(entry.day_id is None for entry in event_list)} of "
+                f"{len(event_list)} have none. Unlike save_day() there is no "
+                f"DailyStats here to inherit it from -- set Event.day_id, or "
+                f"pass the messages to save_day() instead."
+            )
+
+        with self._session_factory.begin() as session:  # pylint: disable=no-member
             for day_id in {entry.day_id for entry in event_list}:
                 self._ensure_day_exists(session, day_id)
             session.flush()
@@ -433,7 +467,7 @@ class ZooDatabase(AbstractPersistence):
         zoo_state.id = slot
         self._assert_unique_ids(zoo_state)
 
-        with self._session_factory.begin() as session:
+        with self._session_factory.begin() as session:  # pylint: disable=no-member
             session.execute(delete(ZooState).where(ZooState.id == slot))
             session.flush()
             session.expunge_all()
@@ -620,7 +654,7 @@ class ZooDatabase(AbstractPersistence):
             2. ``delete_save(99)`` on a missing slot returns ``False`` and
                leaves all other slots untouched.
         """
-        with self._session_factory.begin() as session:
+        with self._session_factory.begin() as session:  # pylint: disable=no-member
             existing = session.get(ZooState, save_id)
             if existing is None:
                 return False
@@ -692,4 +726,5 @@ class ZooDatabase(AbstractPersistence):
             2. On an empty database ``count_rows(Event)`` returns ``0``.
         """
         with self._session_factory() as session:
-            return int(session.scalar(select(func.count()).select_from(model)) or 0)
+            count = select(func.count()).select_from(model)  # pylint: disable=not-callable
+            return int(session.scalar(count) or 0)

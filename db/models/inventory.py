@@ -6,6 +6,13 @@ which makes it structurally impossible to store the same resource twice for
 the same save.
 
 Part of the vivizoo project. Module owner: Jannes (database).
+
+Authorship:
+    Drafted with AI assistance and completed under a human-in-the-loop
+    process: every declaration in this file was read, executed and reconciled
+    with ``planning/db_planning/db_requirements.md`` before it was committed.
+    ``db/docs/ai_usage.md`` records what that review covered and the ten
+    defects it caught.
 """
 
 from __future__ import annotations
@@ -51,7 +58,15 @@ class InventoryItem(Base):
         primary_key=True,
     )
     food_type: Mapped[FoodType] = mapped_column(
-        SAEnum(FoodType, native_enum=False, length=16),
+        # create_constraint=True: see the note in db/models/event.py. Without
+        # it the enum is a bare VARCHAR and the schema accepts any string.
+        SAEnum(
+            FoodType,
+            native_enum=False,
+            length=16,
+            create_constraint=True,
+            name="ck_inventory_food_type",
+        ),
         primary_key=True,
     )
     amount: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

@@ -36,9 +36,25 @@ See ``db/README.md`` for the full guide and ``db/docs/`` for architecture,
 UML diagrams and the test plan.
 
 Part of the vivizoo project. Module owner: Jannes (database).
+
+Authorship:
+    Drafted with AI assistance and completed under a human-in-the-loop
+    process: every declaration in this file was read, executed and reconciled
+    with ``planning/db_planning/db_requirements.md`` before it was committed.
+    ``db/docs/ai_usage.md`` records what that review covered and the ten
+    defects it caught.
 """
 
 from __future__ import annotations
+
+# pylint: disable=duplicate-code
+#   This file re-exports what ``db.interface`` and ``db.models`` already
+#   export, so its ``__all__`` necessarily repeats theirs. Pylint sees three
+#   near-identical name lists and reports duplicate code; here that repetition
+#   *is* the feature -- it is what makes ``from db import DailyStats`` work
+#   next to ``from db.models import DailyStats``. Deriving the list
+#   programmatically would silence the warning at the cost of the one thing an
+#   ``__all__`` is for: being readable at a glance.
 
 from db.interface import AbstractPersistence, EventType, FoodType, TimeOfDay
 from db.models import (

@@ -20,6 +20,13 @@ behind. Pass a path to write a real file::
     python -m db.demo data/demo.sqlite
 
 Part of the vivizoo project. Module owner: Jannes (database).
+
+Authorship:
+    Drafted with AI assistance and completed under a human-in-the-loop
+    process: every declaration in this file was read, executed and reconciled
+    with ``planning/db_planning/db_requirements.md`` before it was committed.
+    ``db/docs/ai_usage.md`` records what that review covered and the ten
+    defects it caught.
 """
 
 from __future__ import annotations
@@ -242,11 +249,21 @@ def run_scenario(storage: AbstractPersistence) -> None:
     Returns:
         None. All results are printed to stdout.
 
+    Note:
+        Nine of the eleven contract methods are exercised here. ``delete_save``
+        and ``append_events`` are deliberately left out: deleting the savegame
+        would undo step 5 for anyone who passed a file path, and a mid-day
+        flush has no place in a linear walkthrough. Both are covered by
+        described cases in ``db/docs/test_plan.md`` (SP-05, SP-06, SP-06b,
+        SP-22, SP-23).
+
     Tests:
         1. Called with ``ZooDatabase(":memory:")`` the function
            completes without raising and prints three day lines.
-        2. Called twice in a row on the same object it prints identical
-           output, because ``reset()`` clears the previous run.
+        2. Called twice in a row on the same object it prints the same figures
+           and the same number of rows, because ``reset()`` clears the previous
+           run; only the ``created_at`` timestamp in step [6] differs, since
+           the second run stamps a new savegame.
     """
     storage.reset()
 

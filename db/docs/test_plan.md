@@ -1,5 +1,11 @@
 # Test Plan — Database Module
 
+> **Authorship.** Drafted with AI assistance and completed under a
+> human-in-the-loop process: reviewed, executed and reconciled with
+> [`planning/db_planning/db_requirements.md`](../../planning/db_planning/db_requirements.md) before being
+> committed. The process record — including the ten defects that review
+> caught — is in [`ai_usage.md`](ai_usage.md).
+
 Test strategy and test cases for every function in `db/`.
 
 As required, the tests are **described but not implemented**. Each case names
@@ -21,7 +27,7 @@ is the consolidated overview.
 | **Unit** | One function in isolation: validators, helpers, serialisation | No database needed — model objects work standalone |
 | **Integration** | A persistence method against a real database | `ZooDatabase(":memory:")` — real SQL, no file |
 | **Contract** | The interface is honoured | Any `AbstractPersistence` implementation must pass the same suite |
-| **System** | The whole module end to end | `python -m db.demo` runs every path |
+| **System** | The whole module end to end | `python -m db.demo` runs the main read/write path (9 of the 11 contract methods) |
 
 ### 1.2 Why no mocks
 
@@ -42,7 +48,15 @@ only test that our mock matches our assumptions.
 
 ### 1.4 Coverage targets
 
-- Every public function: at least 2 cases, at least one of them **B** or **E**.
+- Every function: at least 2 described cases. **No exceptions** — all 67.
+- Every function that **validates input or has a limit**: at least one **B** or
+  **E** case. Ten functions are deliberately outside this rule — constructors,
+  lifecycle methods and the context manager (`__init__`, `close`, `reset`,
+  `__enter__`, `_apply_sqlite_pragmas`, `create_db_engine`, `_to_primitive`,
+  `Base.as_dict`, `run_scenario`, `main`). They take no value that can be out of
+  range, so their meaningful second axis is idempotence (**I**) or contract
+  (**C**), not a boundary. Inventing a fake boundary for them would pad the
+  count without testing anything.
 - Every validator: the valid boundary *and* the value just outside it.
 - Every persistence method: the empty-database case.
 - Every cascade: proof that children really disappear.
@@ -181,7 +195,8 @@ only test that our mock matches our assumptions.
 | ID | Function | Cat | Test case | Expected result |
 |---|---|---|---|---|
 | VW-01 | `register_views` | H | Register, `create_all`, then `SELECT * FROM v_weekly_summary` | Succeeds instead of raising "no such table" |
-| VW-02 | `register_views` | I | Register twice, `create_all` twice | No error — both statements use `IF NOT EXISTS` |
+| VW-02 | `register_views` | I | Register twice, then count `after_create` listeners on the metadata | Exactly `2`, not `4` — repeated registration is a no-op, not an accumulation |
+| VW-03 | `register_views` | B | Construct `ZooDatabase(":memory:")` four times, counting listeners after each | `2` every time; without the guard the count grows `2, 4, 6, 8` and every `create_all` re-issues both statements |
 
 ---
 
@@ -217,6 +232,7 @@ and 14). These cases cover the contract itself.
 | SP-04c | `save_day` | B | Repeat that call with `replace_events=True` | Two events — the day's log becomes exactly what was handed in |
 | SP-05 | `append_events` | H | One event for day 7 on an empty database | Succeeds; `get_events(day_id=7)` returns it (placeholder day created) |
 | SP-06 | `append_events` | B | Empty list | Returns without error; no SQL is issued at all |
+| SP-06b | `append_events` | E | One event whose `day_id` is `None` | `ValueError` naming the field, raised **before** any transaction opens — not the `FlushError: NULL identity key` the database would produce |
 | SP-07 | `_ensure_day_exists` | H | Called for a day that does not exist | A row with that id and all figures at `0` appears |
 | SP-08 | `_ensure_day_exists` | B | Called for a day already holding `revenue=500.0` | Row untouched — real figures are not overwritten with zeros |
 | SP-09 | `get_stats` | H | Days 1–5 saved, request 3 | `day_id` values `[3, 4, 5]` in that order |
@@ -257,8 +273,8 @@ and 14). These cases cover the contract itself.
 | DM-03 | `build_sample_zoo` | H | Call it | `total_animals() == 3` |
 | DM-04 | `build_sample_zoo` | B | Inspect the animals | Three different classes; exactly one carries a status effect |
 | DM-05 | `run_scenario` | H | Run against `ZooDatabase(":memory:")` | Completes without raising; prints three day lines |
-| DM-06 | `run_scenario` | I | Run twice in a row on the same object | Identical output both times, because `reset()` clears the previous run |
-| DM-07 | `main` | H | `python -m db.demo` | Exit code `0`; both implementation headings appear |
+| DM-06 | `run_scenario` | I | Run twice in a row on the same object | Identical apart from the `created_at` timestamp in step [6], because `reset()` clears the previous run but the second save is stamped anew |
+| DM-07 | `main` | H | `python -m db.demo` | Exit code `0`; all six numbered steps appear |
 | DM-08 | `main` | H | `python -m db.demo <path>` | Creates a database file at that path; still exits `0` |
 
 ---
@@ -280,6 +296,8 @@ a whole.
 | X-08 | Transaction | E | Force an exception mid-`save_day` | Neither the day row nor its events are written (rollback) |
 | X-09 | Extensibility | H | Add a species subclass, save and load an animal of it | Returns as the new class; no schema change was needed |
 | X-10 | Performance | H | Time `save_day` with 50 events, and `get_stats(30)` | ~3 ms and ~0.5 ms — well inside a 50 ms tick budget |
+| X-11 | Overwrite guard | B | Save a *real* day whose every figure is `0`, then save that `day_id` again with figures | **Accepted, not refused** — an all-zero day is indistinguishable from an `append_events` placeholder. A known limitation, documented in `architecture.md` §7; this case exists so the gap is recorded rather than discovered |
+| X-12 | Flag matrix | C | All four combinations of `replace_events` and `overwrite` on a day that already holds figures | Refused unless `overwrite=True`; messages append unless `replace_events=True`. The two switches are independent |
 
 ---
 
@@ -296,22 +314,30 @@ a whole.
 | `models/animal.py` | 4 | 8 | 8 |
 | `models/animal_status_effect.py` | 2 | 4 | 4 |
 | `persistence/engine_factory.py` | 5 | 10 | 10 |
-| `persistence/views.py` | 1 | 2 | 2 |
+| `persistence/views.py` | 1 | 3 | 2 |
 | `interface/persistence_port.py` | 13 | 6 | 26 |
 | `persistence/zoo_database.py` | 17 | 41 | 34 |
 | `demo.py` | 4 | 8 | 8 |
-| Cross-cutting | – | 10 | – |
-| **Total** | **67** | **131** | **134** |
+| Cross-cutting | – | 12 | – |
+| **Total** | **67** | **134** | **134** |
 
-Two columns because the two views differ slightly on purpose. The abstract
-methods in `persistence_port.py` are tested through the implementation, so
-this document lists only the six cases specific to the contract itself while
-the docstrings carry the full 26. Conversely, `zoo_database.py`
-gets a few extra rows here for behaviour worth calling out separately.
+Two columns because the two views differ on purpose, in both directions:
 
-**The requirement is met either way:** all 61 functions carry at least two
-described cases in their docstring, verified by an AST audit over every
-module.
+- The abstract methods in `persistence_port.py` are tested through their
+  implementation, so this document lists only the six cases specific to the
+  contract itself while the docstrings carry the full 26.
+- Conversely, `zoo_database.py` and `views.py` get extra rows here for
+  behaviour worth calling out separately — the flag matrix, the listener-count
+  check, the known gap in the overwrite guard.
 
-Every function has at least two described cases, and every one of them
-includes at least one boundary or error case.
+That the two totals match at 134 is a coincidence of arithmetic, not a rule.
+
+**The requirement is met either way:** all **67** functions carry at least two
+described cases in their docstring. Both numbers in this table are counted, not
+remembered — the docstring column by an AST audit over all 18 modules, the
+document column by counting the ID cells above.
+
+Every function has at least two described cases, and every function that
+validates input or enforces a limit carries at least one boundary or error
+case. The ten functions outside that second rule are named in §1.4 together
+with the reason.

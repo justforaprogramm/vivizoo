@@ -4,5 +4,9 @@
 #     pip install -r db/requirements.txt
 #
 # SQLite itself needs no entry here -- it ships with Python (module sqlite3).
+#
+# Authorship: drafted with AI assistance and completed under a human-in-the-loop
+# process -- reviewed, executed and reconciled with
+# planning/db_planning/db_requirements.md. See db/docs/ai_usage.md.
 
 SQLAlchemy>=2.0,<3.0

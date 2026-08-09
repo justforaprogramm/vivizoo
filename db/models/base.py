@@ -18,6 +18,13 @@ Why do ``as_dict()`` / ``from_dict()`` live here instead of in each model?
     of code.
 
 Part of the vivizoo project. Module owner: Jannes (database).
+
+Authorship:
+    Drafted with AI assistance and completed under a human-in-the-loop
+    process: every declaration in this file was read, executed and reconciled
+    with ``planning/db_planning/db_requirements.md`` before it was committed.
+    ``db/docs/ai_usage.md`` records what that review covered and the ten
+    defects it caught.
 """
 
 from __future__ import annotations
@@ -191,7 +198,9 @@ class Base(DeclarativeBase):
 
         Returns:
             str: Text of the form ``<DailyStats day_id=3>``, or for composite
-            keys ``<InventoryItem zoo_id=1, food_type='MEAT'>``.
+            keys ``<InventoryItem zoo_id=1, food_type=<FoodType.MEAT: 'MEAT'>>``
+            -- values are rendered with ``!r``, so an enum shows its full
+            repr rather than just its value.
 
         Tests:
             1. ``repr(DailyStats(day_id=3))`` contains both the class name
@@ -207,8 +216,12 @@ class Base(DeclarativeBase):
         return f"<{type(self).__name__} {keys}>"
 
 
-class TimestampMixin:
+class TimestampMixin:  # pylint: disable=too-few-public-methods
     """Mixin contributing the ``created_at`` column.
+
+    The suppression above is deliberate: a mixin whose entire job is to
+    contribute one column *should* have no methods. Adding one to satisfy a
+    linter would be the actual design smell.
 
     A mixin does **not** inherit from :class:`Base` and is not a table
     itself. It is pulled in through multiple inheritance::
