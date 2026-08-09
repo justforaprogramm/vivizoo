@@ -3,7 +3,7 @@
 ## distribution
 
 Jannes: db
-Eric: frontend
+Erik: frontend
 Benjamin: backend
 
 

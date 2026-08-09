@@ -1,44 +1,41 @@
 #!/bin/bash
-# Lade die normalen lokalen Bash-Einstellungen
+
+# Prüfen, ob die Docker/Devcontainer-Indikatordateien existieren
+if [ -f "/run/.containerenv" ] || [ -f "/.dockerenv" ]; then
+    echo "Devcontainer erkannt - breche init_terminal.sh ab."
+    return 0
+fi
+
+# use bashrc
 if [ -f ~/.bashrc ]; then
     source ~/.bashrc
 fi
 
-if ! command -v devpod &>/dev/null; then
-  echo "devpod nicht gefunden. Prüfe Docker …"
-
-  if ! command -v docker &>/dev/null; then
-    echo "Installiere Docker …"
-    curl -fsSL https://get.docker.com | sudo sh
-    sudo usermod -aG docker "$USER"
-    echo "⚠️  Bitte aus- und wieder einloggen (oder 'newgrp docker') für Docker-Rechte."
-  fi
-
-  echo "Installiere devpod …"
-  curl -fsSL https://devpod.sh/install.sh | sh
-
-  echo "Setze Docker als Default-Provider …"
-  devpod provider use docker 2>/dev/null || devpod provider add docker
+# docker on system?
+if ! command -v docker &>/dev/null; then
+  echo "Docker nicht gefunden! …"
+  return 1
 fi
 
-# DevPod Check
-echo "Prüfe vivizoo.devpod..."
+echo "Docker gefunden..."
+
+#devpod on system
+if ! command -v devpod &>/dev/null; then
+  echo "Devpod nicht gefunden! …"
+  echo "versuche vielleicht …"
+  echo "devpod provider use docker 2>/dev/null || devpod provider add docker"
+  return 1
+fi
+
+echo "Devpod gefunden..."
+
+# devpod running?
+echo "ist vivizoo.devpod verbindbar..."
 if ! ssh -q -o ConnectTimeout=2 vivizoo.devpod exit; then
     echo "Starte DevPod..."
     devpod up .
 fi
 
-echo "Verbinde mit vivizoo.devpod und aktiviere venv..."
-
-# Verbindet per SSH, springt in den Container und startet dort eine interaktive 
-# Bash-Shell, die direkt das venv im Container sourct.
-ssh -t vivizoo.devpod "bash --init-file <(echo '
-    if [ -f ~/.bashrc ]; then source ~/.bashrc; fi
-    if [ -d .venv ]; then 
-        source .venv/bin/activate
-        echo \"[DevPod] .venv erfolgreich aktiviert!\"
-    else
-        python -m venv .venv --system-site-packages
-        source .venv/bin/activate
-    fi
-')"
+# 3. Connect Directly
+echo "Verbinde mit vivizoo.devpod..."
+ssh -t vivizoo.devpod
