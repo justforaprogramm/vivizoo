@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable
 
 from db.interface.enums import FoodType
-from backend.core.animal import create_animal, known_species
+from backend.core.animal import Animal, create_animal, known_species
 
 if TYPE_CHECKING:  # type checkers only, avoids a runtime cycle
     from backend.core.zoo import Zoo
@@ -236,7 +236,13 @@ class ActionHandler:
         """
         if species not in known_species():
             return ActionResult(False, f"Unknown species {species!r}.")
-        animal_cls = create_animal(species, animal_id="tmp", name="tmp")
+        animal_cls = create_animal(
+            species,
+            animal_id="tmp",
+            name="tmp",
+            x=Animal.FALLBACK_X,
+            y=Animal.FALLBACK_Y,
+        )
         price = animal_cls.BUY_PRICE
         if not self._zoo.finances.spend(price):
             return ActionResult(False, "Not enough money.")
