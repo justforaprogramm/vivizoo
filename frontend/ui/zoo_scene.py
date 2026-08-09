@@ -1,13 +1,23 @@
 """
 ZooScene — QGraphicsScene managing all entity sprites on the 800×600 map.
 
-Tier 1: Gradient enclosures.
-Tier 3: Dot-grid map background, ambient floating particles,
-        smooth day/night lighting transition (QPropertyAnimation).
+Owns three sprite dictionaries keyed by backend id (animals, visitors,
+enclosures), a dot-grid background, ambient particles, and the day/night
+overlay. ``update_entities`` performs the whole sprite batching pass:
+create new sprites, move existing ones, drop stale ones.
+
+The overlay follows the backend's four-phase ``time_of_day`` field and
+cross-fades between the phase tints defined in ``constants.PHASE_LIGHTING``.
 
 Tests:
-    - test_enclosures_created_from_defs, test_lighting_overlay_exists_at_correct_z,
-      test_update_entities_creates_new_animal, test_apply_lighting_sets_dark_overlay.
+    - test_enclosures_created_from_defs: Create a ZooScene; verify
+      len(enclosures) == len(ENCLOSURE_DEFS).
+    - test_lighting_overlay_exists_at_correct_z: Verify the overlay's
+      zValue() equals Z_OVERLAY.
+    - test_update_entities_creates_new_animal: Pass a state with one
+      animal; verify one sprite is added.
+
+Module owner: Erik (frontend).
 """
 
 from __future__ import annotations
@@ -15,25 +25,19 @@ from __future__ import annotations
 import random
 from typing import Optional
 
-from PyQt6.QtWidgets import (
-    QGraphicsScene,
-    QGraphicsRectItem,
-    QGraphicsEllipseItem,
-    QGraphicsItem,
-)
-from PyQt6.QtCore import Qt, QVariantAnimation, QEasingCurve
-from PyQt6.QtGui import QBrush, QColor, QPen
+from PyQt6.QtWidgets import QGraphicsScene, QGraphicsRectItem
+from PyQt6.QtCore import Qt, QObject, QVariantAnimation, QEasingCurve
+from PyQt6.QtGui import QBrush, QColor, QImage, QPainter, QPen
 
 from frontend.core.constants import (
     MAP_W,
     MAP_H,
     Z_OVERLAY,
-    Z_VISITORS,
     C_BG_DEEP,
     C_BG_MID,
-    C_BORDER,
     LIGHTING_DAY,
     LIGHTING_NIGHT,
+    PHASE_LIGHTING,
     ENCLOSURE_DEFS,
 )
 from frontend.ui.animal_sprite import AnimalSprite
@@ -42,104 +46,101 @@ from frontend.ui.penguin_sprite import AsciiPenguinSprite
 from frontend.ui.giraffe_sprite import AsciiGiraffeSprite
 from frontend.ui.visitor_sprite import VisitorSprite
 from frontend.ui.enclosure_item import EnclosureItem
+from frontend.ui.particle import AmbientParticle
 
-# ── Tier 3: Particle config ──────────────────────────────────────────────
 PARTICLE_COUNT = 30
-PARTICLE_SPEED = 0.3  # px per tick
-PARTICLE_SIZE = 2  # px
+LIGHTING_FADE_MS = 800
+
+# Every concrete animal sprite is two things at once: an AnimalSpriteBase
+# (the behaviour the scene calls) and a QGraphicsItem (what Qt manages).
+# AnimalSpriteBase deliberately carries no Qt state — see entity_sprite.py —
+# so this alias names the pair once instead of repeating the species list at
+# every use site. Adding a species means extending this one line.
+AnimalSpriteT = (
+    AnimalSprite | AsciiLionSprite | AsciiPenguinSprite | AsciiGiraffeSprite
+)
 
 
-class _Particle(QGraphicsEllipseItem):
-    """Tiny floating dot drifting slowly upward."""
-
-    def __init__(self, x: float, y: float, parent: Optional[QGraphicsItem] = None):
-        super().__init__(x, y, PARTICLE_SIZE, PARTICLE_SIZE, parent)
-        self.setBrush(QBrush(QColor(C_BORDER)))
-        self.setPen(QPen(Qt.PenStyle.NoPen))
-        self.setZValue(Z_VISITORS - 1)  # below visitors, above animals
-        self._drift_speed = random.uniform(0.5, 1.5) * PARTICLE_SPEED
-        self._wobble_phase = random.random() * 6.28
-
-    def tick(self) -> None:
-        """Move upward and reset when off-screen.
-
-        Tests:
-            - test_particle_ticks_upward: Record position, call tick();
-              verify y coordinate decreased (particle moved up).
-            - test_particle_wraps_around: Move particle above MAP_H;
-              call tick(); verify it reappears at the top.
-        """
-        rect = self.rect()
-        new_y = rect.y() - self._drift_speed
-        if new_y < -PARTICLE_SIZE:
-            new_y = MAP_H + PARTICLE_SIZE
-            rect.moveLeft(random.randint(0, MAP_W))
-        self.setRect(rect.x(), new_y, PARTICLE_SIZE, PARTICLE_SIZE)
-
-
+# Eight fields instead of seven: three sprite registries (animals, visitors,
+# enclosures), the particle list and the four parts of the day/night
+# lighting.
+# pylint: disable-next=too-many-instance-attributes
 class ZooScene(QGraphicsScene):
-    """The 2-D zoo map (800×600) holding all spatial entity representations.
-
-    Manages animal, visitor, and enclosure sprites as dicts keyed by
-    backend ID. Handles lighting overlay and ambient particle effects.
+    """The 2-D zoo map (800×600) holding every spatial entity.
 
     Tests:
-        - test_enclosures_created_from_defs: Create ZooScene; verify
-          len(_enclosures) == len(ENCLOSURE_DEFS).
-        - test_lighting_overlay_exists_at_correct_z: Verify overlay
-          zValue() == Z_OVERLAY.
-        - test_update_entities_creates_new_animal: Pass game_state with
-          1 animal; verify 1 new sprite added.
-        - test_apply_lighting_sets_dark_overlay: Call apply_lighting(False);
-          verify overlay opacity > 0 (dark).
+        - test_enclosures_created_from_defs: Create a ZooScene; verify one
+          EnclosureItem exists per ENCLOSURE_DEFS entry.
+        - test_update_entities_removes_stale_animals: Pass a state without a
+          previously seen animal; verify its sprite is removed.
     """
 
-    def __init__(self, parent: Optional[object] = None) -> None:
+    def __init__(self, parent: Optional[QObject] = None) -> None:
+        """Build the background, overlay, particles and static enclosures.
+
+        Args:
+            parent: Optional parent object.
+
+        Returns:
+            None (constructor).
+
+        Tests:
+            - test_scene_rect_matches_map: Verify sceneRect() is
+              (0, 0, MAP_W, MAP_H).
+            - test_particles_created: Verify PARTICLE_COUNT particles exist
+              after construction.
+        """
         super().__init__(0, 0, MAP_W, MAP_H, parent)
 
-        # ── Tier 3: Dot-grid background ──────────────────────────────────
         self.setBackgroundBrush(self._build_grid_brush())
 
-        # Entity dictionaries
-        self._animals: dict[
-            str,
-            AnimalSprite | AsciiLionSprite | AsciiPenguinSprite | AsciiGiraffeSprite,
-        ] = {}
+        # The scene only ever calls the polymorphic AnimalSpriteBase API on
+        # these — update_state, set_selected — never a species-specific one.
+        self._animals: dict[str, AnimalSpriteT] = {}
         self._visitors: dict[str, VisitorSprite] = {}
         self._enclosures: dict[str, EnclosureItem] = {}
 
-        # Lighting overlay (topmost)
+        self._lighting_colour = QColor(*LIGHTING_DAY)
         self._lighting_overlay = QGraphicsRectItem(0, 0, MAP_W, MAP_H)
         self._lighting_overlay.setZValue(Z_OVERLAY)
-        self._lighting_overlay.setBrush(QBrush(QColor(*LIGHTING_DAY)))
+        self._lighting_overlay.setBrush(QBrush(self._lighting_colour))
+        # Without an explicit NoPen the item keeps Qt's default black 1 px
+        # outline, which draws a hairline along the map's top and left edge
+        # even at the fully transparent NOON tint.
+        self._lighting_overlay.setPen(QPen(Qt.PenStyle.NoPen))
         self.addItem(self._lighting_overlay)
 
-        # ── Tier 3: Smooth lighting transition animation ─────────────────
         self._lighting_anim = QVariantAnimation()
-        self._lighting_anim.setDuration(800)
+        self._lighting_anim.setDuration(LIGHTING_FADE_MS)
         self._lighting_anim.setEasingCurve(QEasingCurve.Type.InOutCubic)
         self._lighting_anim.valueChanged.connect(self._on_lighting_step)
-        self._lighting_is_night = False
+        self._phase: str = ""
 
-        # ── Tier 3: Ambient particles ────────────────────────────────────
-        self._particles: list[_Particle] = []
+        self._particles: list[AmbientParticle] = []
         for _ in range(PARTICLE_COUNT):
-            px = random.randint(0, MAP_W)
-            py = random.randint(0, MAP_H)
-            p = _Particle(px, py)
-            self.addItem(p)
-            self._particles.append(p)
+            particle = AmbientParticle(
+                random.randint(0, MAP_W), random.randint(0, MAP_H)
+            )
+            self.addItem(particle)
+            self._particles.append(particle)
 
-        # ── Static enclosures ─────────────────────────────────────────────
         self._create_enclosures()
 
     # ── Background grid ─────────────────────────────────────────────────
 
     @staticmethod
     def _build_grid_brush() -> QBrush:
-        """Create a subtle dot-grid pattern for game-map aesthetic."""
-        from PyQt6.QtGui import QImage, QPainter
+        """Create the subtle 40 px dot-grid pattern used as map background.
 
+        Returns:
+            QBrush: A tiling brush with one dot per grid cell.
+        
+        Tests:
+            - test_returns_tiling_brush: Call it; verify the brush carries a
+              40×40 texture.
+            - test_background_colour_matches_theme: Verify the texture is filled
+              with C_BG_DEEP.
+        """
         grid_size = 40
         img = QImage(grid_size, grid_size, QImage.Format.Format_ARGB32)
         img.fill(QColor(C_BG_DEEP))
@@ -152,6 +153,17 @@ class ZooScene(QGraphicsScene):
     # ── Initialisation ────────────────────────────────────────────────────
 
     def _create_enclosures(self) -> None:
+        """Create one EnclosureItem per ENCLOSURE_DEFS entry.
+
+        Returns:
+            None.
+        
+        Tests:
+            - test_creates_one_item_per_definition: Call it; verify the enclosure
+              dict length equals len(ENCLOSURE_DEFS).
+            - test_items_added_to_scene: Call it; verify each item has this scene
+              as its parent scene.
+        """
         for edef in ENCLOSURE_DEFS:
             item = EnclosureItem(
                 enclosure_id=edef["id"],
@@ -168,196 +180,251 @@ class ZooScene(QGraphicsScene):
 
     # ── Lighting ──────────────────────────────────────────────────────────
 
-    def _on_lighting_step(self, value: float) -> None:
-        """Update the overlay opacity during the fade animation."""
-        self._lighting_overlay.setOpacity(value)
-
-    def apply_lighting(self, zoo_open: bool) -> None:
-        """Smoothly transition between day and night.
-
-        Tier 3: Uses QVariantAnimation to ramp overlay opacity instead of
-        instant colour swap.
+    def _on_lighting_step(self, value: QColor) -> None:
+        """Paint the interpolated overlay colour during the phase fade.
 
         Args:
-            zoo_open: True → fade to transparent (day), False → fade to dark.
+            value: The interpolated QColor supplied by the animation.
+
+        Returns:
+            None.
+        
+        Tests:
+            - test_overlay_brush_follows_value: Call with a red QColor; verify the
+              overlay brush is red.
+            - test_last_colour_is_remembered: Call it, then start a new fade;
+              verify the fade begins at that colour.
+        """
+        self._lighting_colour = value
+        self._lighting_overlay.setBrush(QBrush(value))
+
+    def apply_lighting(self, phase: str, zoo_open: bool = True) -> None:
+        """Cross-fade the map overlay to the tint of the given day phase.
+
+        Args:
+            phase: The backend's ``system.time_of_day`` value — one of
+                "MORNING", "NOON", "EVENING", "NIGHT". Unknown values fall
+                back to the day/night tint chosen by ``zoo_open``.
+            zoo_open: The backend's ``system.zoo_open`` flag, used only as a
+                fallback when the phase is unknown.
+
+        Returns:
+            None.
 
         Tests:
-            - test_day_is_transparent: Call apply_lighting(True); verify
-              overlay opacity transitions toward 0.0.
-            - test_night_is_dark: Call apply_lighting(False); verify
-              overlay brush opacity > 0 (semi-transparent black).
-            - test_no_op_when_already_at_target: Call with same state
-              twice; verify animation does not restart unnecessarily.
+            - test_noon_is_transparent: Call apply_lighting("NOON"); verify
+              the target colour has alpha 0.
+            - test_night_is_dark: Call apply_lighting("NIGHT"); verify the
+              target colour alpha is above 100.
+            - test_same_phase_does_not_restart_animation: Call twice with
+              the same phase; verify the animation is not restarted.
         """
-        start = self._lighting_overlay.opacity()
-        target = 0.0 if zoo_open else 1.0
-        if abs(start - target) < 0.01:
-            return  # already at target
+        if phase == self._phase:
+            return
 
-        if zoo_open:
-            self._lighting_overlay.setBrush(QBrush(QColor(*LIGHTING_DAY)))
-        else:
-            self._lighting_overlay.setBrush(QBrush(QColor(*LIGHTING_NIGHT)))
+        rgba = PHASE_LIGHTING.get(
+            phase, LIGHTING_DAY if zoo_open else LIGHTING_NIGHT
+        )
+        target = QColor(*rgba)
 
         self._lighting_anim.stop()
-        self._lighting_anim.setStartValue(start)
+        self._lighting_anim.setStartValue(QColor(self._lighting_colour))
         self._lighting_anim.setEndValue(target)
         self._lighting_anim.start()
-        self._lighting_is_night = not zoo_open
+        self._phase = phase
 
     # ── Entity Batching ───────────────────────────────────────────────────
 
     def update_entities(self, game_state: dict) -> None:
-        """Create, update, and remove all entity sprites from game state.
+        """Create, update and remove every entity sprite from a snapshot.
 
         Args:
-            game_state: Full state dict (animals_on_map, visitors_on_map).
+            game_state: The enriched snapshot from
+                ``FrontendController.get_state()`` — animals_on_map,
+                visitors_on_map and (optionally) enclosures_on_map.
+
+        Returns:
+            None.
 
         Tests:
-            - test_creates_new_animal_sprites: Pass 1 animal; verify scene
-              now has 1 animal sprite in _animals dict.
-            - test_removes_stale_animals: Pass empty animals_on_map list;
-              verify all previously created sprites are removed from scene.
-            - test_visitors_created_and_updated: Pass 2 visitors; verify
-              _visitors dict has 2 entries with correct positions.
+            - test_creates_new_animal_sprites: Pass one animal; verify one
+              sprite exists in the animal dict.
+            - test_removes_stale_animals: Pass an empty animals_on_map;
+              verify all previously created sprites are removed.
+            - test_species_picks_ascii_sprite: Pass a lion; verify the
+              created sprite is an AsciiLionSprite.
         """
-        # Animals
-        backend_ids: set[str] = set()
-        for a in game_state.get("animals_on_map", []):
-            aid = a["id"]
-            backend_ids.add(aid)
-            if aid in self._animals:
-                sprite = self._animals[aid]
-            else:
-                if a["species"] == "lion":
-                    sprite = AsciiLionSprite(
-                        animal_id=aid,
-                        x=a["x"],
-                        y=a["y"],
-                        name=a.get("name", "Löwe"),
-                    )
-                elif a["species"] == "penguin":
-                    sprite = AsciiPenguinSprite(
-                        animal_id=aid,
-                        x=a["x"],
-                        y=a["y"],
-                        name=a.get("name", "Pingu"),
-                    )
-                elif a["species"] == "giraffe":
-                    sprite = AsciiGiraffeSprite(
-                        animal_id=aid,
-                        x=a["x"],
-                        y=a["y"],
-                        name=a.get("name", "Giraffe"),
-                    )
-                else:
-                    sprite = AnimalSprite(
-                        animal_id=aid,
-                        species=a["species"],
-                        x=a["x"],
-                        y=a["y"],
-                        name=a.get("name", "?"),
-                    )
-                self.addItem(sprite)
-                self._animals[aid] = sprite
-            sprite.update_state(a["x"], a["y"], a.get("is_dead", False))
+        self._update_animals(game_state.get("animals_on_map") or [])
+        self._update_visitors(game_state.get("visitors_on_map") or [])
+        self._update_enclosures(game_state.get("enclosures_on_map") or [])
 
-        for stale_id in set(self._animals) - backend_ids:
+        for particle in self._particles:
+            particle.tick()
+
+    def _update_animals(self, animals: list[dict]) -> None:
+        """Batch-update the animal sprites.
+
+        Args:
+            animals: The ``animals_on_map`` list of the snapshot.
+
+        Returns:
+            None.
+        
+        Tests:
+            - test_creates_missing_sprites: Pass one unseen animal; verify a
+              sprite was created for it.
+            - test_removes_stale_sprites: Pass an empty list after creating a
+              sprite; verify it was removed from the scene.
+        """
+        seen: set[str] = set()
+        for animal in animals:
+            animal_id = animal["id"]
+            seen.add(animal_id)
+            sprite = self._animals.get(animal_id)
+            if sprite is None:
+                sprite = self._make_sprite(animal)
+                self.addItem(sprite)
+                self._animals[animal_id] = sprite
+            sprite.update_state(animal["x"], animal["y"], animal.get("is_dead", False))
+
+        for stale_id in set(self._animals) - seen:
             self.removeItem(self._animals.pop(stale_id))
 
-        # Visitors
-        visitor_ids: set[str] = set()
-        for v in game_state.get("visitors_on_map", []):
-            vid = v["id"]
-            visitor_ids.add(vid)
-            if vid in self._visitors:
-                sprite = self._visitors[vid]
-            else:
-                sprite = VisitorSprite(visitor_id=vid, x=v["x"], y=v["y"])
-                self.addItem(sprite)
-                self._visitors[vid] = sprite
-            sprite.update_state(v["x"], v["y"])
+    @staticmethod
+    def _make_sprite(animal: dict) -> AnimalSpriteT:
+        """Pick the sprite class matching the animal's species.
 
-        for stale_id in set(self._visitors) - visitor_ids:
+        Args:
+            animal: One entry of ``animals_on_map``.
+
+        Returns:
+            The species-specific ASCII sprite, or a generic AnimalSprite
+            circle for species without dedicated art.
+        
+        Tests:
+            - test_lion_gets_ascii_sprite: Pass species "lion"; verify an
+              AsciiLionSprite is returned.
+            - test_unknown_species_falls_back: Pass species "zebra"; verify a
+              generic AnimalSprite is returned.
+        """
+        animal_id = animal["id"]
+        species = animal.get("species", "")
+        name = animal.get("name") or animal_id
+        x, y = animal["x"], animal["y"]
+
+        if species == "lion":
+            return AsciiLionSprite(animal_id=animal_id, x=x, y=y, name=name)
+        if species == "penguin":
+            return AsciiPenguinSprite(animal_id=animal_id, x=x, y=y, name=name)
+        if species == "giraffe":
+            return AsciiGiraffeSprite(animal_id=animal_id, x=x, y=y, name=name)
+        return AnimalSprite(
+            animal_id=animal_id, species=species, x=x, y=y, name=name
+        )
+
+    def _update_visitors(self, visitors: list[dict]) -> None:
+        """Batch-update the visitor dots.
+
+        Args:
+            visitors: The ``visitors_on_map`` list of the snapshot.
+
+        Returns:
+            None.
+        
+        Tests:
+            - test_creates_missing_dots: Pass one unseen visitor; verify a dot was
+              created.
+            - test_removes_departed_visitors: Pass an empty list; verify all dots
+              were removed.
+        """
+        seen: set[str] = set()
+        for visitor in visitors:
+            visitor_id = visitor["id"]
+            seen.add(visitor_id)
+            sprite = self._visitors.get(visitor_id)
+            if sprite is None:
+                sprite = VisitorSprite(
+                    visitor_id=visitor_id, x=visitor["x"], y=visitor["y"]
+                )
+                self.addItem(sprite)
+                self._visitors[visitor_id] = sprite
+            sprite.update_position(visitor["x"], visitor["y"])
+
+        for stale_id in set(self._visitors) - seen:
             self.removeItem(self._visitors.pop(stale_id))
 
-        # Enclosure counts
-        counts: dict[str, int] = {}
-        for a in game_state.get("animals_on_map", []):
-            eid = a.get("enclosure_id", "")
-            if eid:
-                counts[eid] = counts.get(eid, 0) + 1
-        for eid, item in self._enclosures.items():
-            item.update_state(counts.get(eid, 0))
+    def _update_enclosures(self, enclosures: list[dict]) -> None:
+        """Push live occupancy and cleanliness into the enclosure items.
 
-        # ── Tier 3: Animate particles ────────────────────────────────────
-        for p in self._particles:
-            p.tick()
+        Args:
+            enclosures: The ``enclosures_on_map`` list assembled by the
+                controller. An empty list leaves the items untouched.
 
-    def clear_all(self) -> None:
-        """Remove all dynamic entities (animals + visitors). Enclosures persist.
-
+        Returns:
+            None.
+        
         Tests:
-            - test_clear_removes_all_animals: Add 3 animals, call clear_all;
-              verify _animals dict is empty.
-            - test_clear_removes_all_visitors: Add 5 visitors, call clear_all;
-              verify _visitors dict is empty.
-            - test_clear_preserves_enclosures: Call clear_all; verify
-              _enclosures dict still has ENCLOSURE_DEFS length.
+            - test_pushes_occupancy: Pass an entry with occupied=2; verify the
+              item label shows 2.
+            - test_empty_list_is_noop: Call with []; verify the items keep their
+              previous labels.
         """
-        for sprite in list(self._animals.values()):
-            self.removeItem(sprite)
-        self._animals.clear()
-        for sprite in list(self._visitors.values()):
-            self.removeItem(sprite)
-        self._visitors.clear()
+        for entry in enclosures:
+            item = self._enclosures.get(entry.get("id", ""))
+            if item is not None:
+                item.update_state(
+                    entry.get("occupied", 0), entry.get("cleanliness")
+                )
 
-    # ── Public accessors (used by ZooMainWindow) ─────────────────────────
+    # ── Public accessors ──────────────────────────────────────────────────
 
     @property
     def animals(self) -> dict:
-        """Return the animal sprite dictionary (public accessor)."""
+        """Return the animal sprite dictionary keyed by backend id.
+
+        Returns:
+            dict: Mapping of animal id to sprite.
+
+        Tests:
+            - test_empty_before_first_update: Verify the dict is empty on a
+              fresh scene.
+            - test_contains_added_animal: Run update_entities with one
+              animal; verify its id is a key.
+        """
         return self._animals
 
     @property
     def enclosures(self) -> dict[str, EnclosureItem]:
-        """Return the enclosure item dictionary (public accessor)."""
+        """Return the enclosure item dictionary keyed by enclosure id.
+
+        Returns:
+            dict[str, EnclosureItem]: One entry per ENCLOSURE_DEFS entry.
+
+        Tests:
+            - test_has_all_defs: Verify the dict length equals
+              len(ENCLOSURE_DEFS).
+            - test_keys_are_ids: Verify "e_01" is among the keys.
+        """
         return self._enclosures
 
-    def animal_sprite(
-        self, animal_id: str
-    ) -> Optional[
-        AnimalSprite | AsciiLionSprite | AsciiPenguinSprite | AsciiGiraffeSprite
-    ]:
-        """Return the sprite for a given animal ID.
+    def animal_sprite(self, animal_id: str) -> Optional[AnimalSpriteT]:
+        """Return the sprite for one animal id.
+
+        Used by the window to mark the selected animal on the map — the
+        selection can be made from the roster table as well, where no sprite
+        is involved.
 
         Args:
             animal_id: Backend entity id (e.g. "a_01").
 
         Returns:
-            The sprite instance, or None if not found.
+            AnimalSpriteT | None: The sprite instance, or None when the id is
+            unknown (e.g. the animal died in the same frame).
 
         Tests:
-            - test_returns_sprite_for_valid_id: Add animal; call animal_sprite
-              with its id; verify it returns the sprite.
-            - test_returns_none_for_unknown_id: Call animal_sprite("nonexistent");
-              verify None returned.
+            - test_returns_sprite_for_valid_id: Add an animal; verify the
+              lookup returns its sprite.
+            - test_returns_none_for_unknown_id: Look up "nonexistent";
+              verify None is returned.
         """
         return self._animals.get(animal_id)
-
-    def enclosure_item(self, enclosure_id: str) -> Optional[EnclosureItem]:
-        """Return the enclosure item for a given enclosure ID.
-
-        Args:
-            enclosure_id: Enclosure id (e.g. "e_01").
-
-        Returns:
-            The EnclosureItem, or None if not found.
-
-        Tests:
-            - test_returns_enclosure_for_valid_id: Verify enclosure_item("e_01")
-              returns an EnclosureItem instance.
-            - test_returns_none_for_unknown_id: Call enclosure_item("e_99");
-              verify None returned.
-        """
-        return self._enclosures.get(enclosure_id)

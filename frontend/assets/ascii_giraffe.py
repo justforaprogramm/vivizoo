@@ -1,6 +1,8 @@
 """
 ASCII Art Giraffe — dedicated asset file.
 Used as the giraffe sprite pixmap source in the frontend.
+
+Module owner: Erik (frontend).
 """
 
 ASCII_GIRAFFE = r"""

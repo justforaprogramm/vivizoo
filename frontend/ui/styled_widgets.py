@@ -1,10 +1,24 @@
 """
 Reusable factory functions for creating consistently styled PyQt6 widgets.
 
-styled_button() applies a complete INLINE stylesheet to each button
-so it is independent of global QSS timing / polish order.
+``styled_button()`` applies a complete INLINE stylesheet to each button so it
+is independent of global QSS timing / polish order, and offers exactly the
+three variants the UI uses:
 
-styled_label() applies transparent-background QLabel styling.
+============ ============================= ==============================
+variant      meaning                       used by
+============ ============================= ==============================
+(default)    neutral action                the four ActionPanel buttons
+``accent``   the primary action of a form  "Kaufen" in the shop
+``small``    secondary control in a header "Leeren" in the chat log
+============ ============================= ==============================
+
+Adding a fourth variant means adding one ``_*_CSS`` template and one branch
+in :func:`styled_button` — see ``docs/IMPLEMENTATION_PLAN.md`` §5.1 for the destructive
+("danger") variant that a sell/remove action would need.
+
+``styled_label()`` applies transparent-background QLabel styling, and
+``panel_layout()`` installs the vertical layout every tab panel starts with.
 
 Tests:
     - test_styled_button_default: Create default button; verify it has
@@ -12,31 +26,26 @@ Tests:
     - test_styled_button_accent: Create accent=True button; verify
       background is green.
     - test_styled_label_dim: Create dim label; verify colour is C_TEXT_DIM.
+    - test_panel_layout_is_installed: Call panel_layout() on a QWidget;
+      verify the widget reports the returned layout.
+
+Module owner: Erik (frontend).
 """
 
-from PyQt6.QtWidgets import QPushButton, QLabel
+from PyQt6.QtWidgets import QLabel, QPushButton, QVBoxLayout, QWidget
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QCursor
 
-try:
-    from frontend.core.constants import (
-        C_BG_CARD,
-        C_BG_CARD2,
-        C_ACCENT,
-        C_ACCENT2,
-        C_ACCENT_GLOW,
-        C_RED,
-        C_RED_GLOW,
-        C_BORDER,
-        C_TEXT,
-        C_TEXT_DIM,
-    )
-except ImportError:
-    C_BG_CARD = C_BG_CARD2 = "#1c2333"
-    C_ACCENT = C_ACCENT2 = C_ACCENT_GLOW = "#3fb950"
-    C_RED = C_RED_GLOW = "#f85149"
-    C_BORDER = "#30363d"
-    C_TEXT = C_TEXT_DIM = "#888"
+from frontend.core.constants import (
+    C_BG_CARD,
+    C_BG_CARD2,
+    C_ACCENT,
+    C_ACCENT2,
+    C_ACCENT_GLOW,
+    C_BORDER,
+    C_TEXT,
+    C_TEXT_DIM,
+)
 
 # ── CSS templates ────────────────────────────────────────────────────────
 
@@ -76,24 +85,6 @@ _ACCENT_CSS = (
     f"}}"
 )
 
-_DANGER_CSS = (
-    f"QPushButton {{"
-    f"  background: qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 {C_RED_GLOW},stop:1 {C_RED});"
-    f"  border: 2px solid {C_RED_GLOW}; color: #fff; border-radius: 6px;"
-    f"  padding: 10px 16px; font-weight: bold; font-size: 12px; min-height: 32px;"
-    f"}}"
-    f"QPushButton:hover {{"
-    f"  background: qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 {C_RED},stop:1 #b22222);"
-    f"  border: 2px solid #fff;"
-    f"}}"
-    f"QPushButton:pressed {{"
-    f"  background: #b22222; border: 2px solid #fff; color: #fff;"
-    f"}}"
-    f"QPushButton:disabled {{"
-    f"  color: #556; background: #2e1a1a; border: 1px solid #322;"
-    f"}}"
-)
-
 _SMALL_CSS = (
     f"QPushButton {{"
     f"  background: qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 {C_BG_CARD2},stop:1 {C_BG_CARD});"
@@ -113,19 +104,50 @@ _SMALL_CSS = (
 )
 
 
+def panel_layout(panel: QWidget, spacing: int = 8, margin: int = 4) -> QVBoxLayout:
+    """Give a tab panel its standard vertical layout.
+
+    Every panel in the right-hand column opens with the same four lines: a
+    styled background attribute (without it Qt ignores the panel's QSS
+    background), a vertical layout, one spacing and one margin. Four
+    identical lines in four files is exactly the kind of copy pylint
+    reports as ``duplicate-code`` — and the kind that drifts apart the day
+    one panel gets a different margin by accident.
+
+    Args:
+        panel: The panel widget the layout is installed on.
+        spacing: Pixels between two children.
+        margin: Pixels of padding on all four sides.
+
+    Returns:
+        QVBoxLayout: The installed layout, ready to take widgets.
+
+    Tests:
+        - test_layout_is_installed: Call it on a bare QWidget; verify
+          panel.layout() is the returned object.
+        - test_spacing_and_margins_are_applied: Call with spacing=8 and
+          margin=4; verify the layout reports both.
+        - test_background_attribute_is_set: Call it; verify the panel has
+          WA_StyledBackground so its stylesheet is painted.
+    """
+    panel.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+    layout = QVBoxLayout(panel)
+    layout.setSpacing(spacing)
+    layout.setContentsMargins(margin, margin, margin, margin)
+    return layout
+
+
 def styled_button(
     text: str,
     accent: bool = False,
-    danger: bool = False,
     small: bool = False,
 ) -> QPushButton:
     """Create a QPushButton with self-contained inline QSS.
 
     Args:
         text: Button label.
-        accent: Green variant.
-        danger: Red variant.
-        small: Compact variant.
+        accent: Green primary-action variant.
+        small: Compact variant for secondary controls in a header row.
 
     Returns:
         Styled QPushButton. Hover/pressed/disabled states are built-in.
@@ -135,16 +157,14 @@ def styled_button(
           stylesheet contains C_BG_CARD colour.
         - test_accent_button_has_green_bg: Create accent=True; verify
           stylesheet contains C_ACCENT colour.
-        - test_danger_button_has_red_bg: Create danger=True; verify
-          stylesheet contains C_RED colour.
+        - test_small_button_is_compact: Create small=True; verify the
+          stylesheet asks for a 24 px minimum height instead of 32.
     """
     btn = QPushButton(text)
     btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
 
     if accent:
         css = _ACCENT_CSS
-    elif danger:
-        css = _DANGER_CSS
     elif small:
         css = _SMALL_CSS
     else:
@@ -157,40 +177,31 @@ def styled_button(
 def styled_label(
     text: str = "",
     dim: bool = False,
-    large: bool = False,
     bold: bool = False,
-    color: str | None = None,
-    size: int | None = None,
 ) -> QLabel:
     """Create a transparent-background QLabel with optional styling.
 
     Args:
         text: Initial text.
-        dim: Use C_TEXT_DIM colour.
-        large: 18 pt font.
+        dim: Use C_TEXT_DIM colour instead of C_TEXT.
         bold: Bold weight.
-        color: Override hex colour.
-        size: Override point size.
 
     Returns:
         Styled QLabel.
 
     Tests:
         - test_dim_uses_dim_color: dim=True → stylesheet contains C_TEXT_DIM.
-        - test_large_has_18pt: large=True → font size is 18.
+        - test_bold_sets_weight: bold=True → the label font reports bold.
     """
     label = QLabel(text)
-    label.setStyleSheet("background: transparent; border: none; padding: 0;")
 
     font = label.font()
-    if bold:
-        font.setBold(True)
-    pt = size if size is not None else (18 if large else None)
-    if pt is not None:
-        font.setPointSize(pt)
+    font.setBold(bold)
     label.setFont(font)
 
-    fg = color or (C_TEXT_DIM if dim else C_TEXT)
-    label.setStyleSheet(f"{label.styleSheet()} color: {fg};")
+    fg = C_TEXT_DIM if dim else C_TEXT
+    label.setStyleSheet(
+        f"background: transparent; border: none; padding: 0; color: {fg};"
+    )
 
     return label

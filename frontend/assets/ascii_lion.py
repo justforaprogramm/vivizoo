@@ -1,6 +1,8 @@
 """
 ASCII Art Lion — dedicated asset file.
 Used as the lion sprite pixmap source in the frontend.
+
+Module owner: Erik (frontend).
 """
 
 ASCII_LION = r"""
