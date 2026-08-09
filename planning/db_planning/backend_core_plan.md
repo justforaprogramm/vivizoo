@@ -1,5 +1,10 @@
 # 🔧 Backend Core Plan – Zoo Digital Twin
 
+> **Authorship.** Drafted with AI assistance and completed under a
+> human-in-the-loop process: this plan was agreed first and the code in
+> `db/` was written against it, then checked back against it field by
+> field. The process record is in [`ai_usage.md`](../../db/docs/ai_usage.md).
+
 > **Only the absolute MVP core mechanics.**
 > Everything else (upgrades, achievements, graveyard, crafting, seasons) builds ON TOP of this.
 

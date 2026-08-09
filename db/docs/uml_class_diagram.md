@@ -1,14 +1,26 @@
 # UML Class Diagrams — Database Module
 
+> **Authorship.** Drafted with AI assistance and completed under a
+> human-in-the-loop process: reviewed, executed and reconciled with
+> [`planning/db_planning/db_requirements.md`](../../planning/db_planning/db_requirements.md) before being
+> committed. The process record — including the ten defects that review
+> caught — is in [`ai_usage.md`](ai_usage.md).
+
 All diagrams are Mermaid and render directly on GitHub and in VS Code
 (extension *Markdown Preview Mermaid Support*).
 
-Four diagrams, each answering one question:
+Five diagrams, each answering one question:
 
 1. [The complete picture](#1-overview) — how everything fits together
 2. [The interface](#2-interface-and-implementations) — abstraction and polymorphism
 3. [The models](#3-domain-model) — inheritance, composition, aggregation
 4. [The animal hierarchy](#4-animal-hierarchy) — polymorphism in detail
+5. [The enumerations](#5-enumerations) — the shared value sets
+
+These describe the **object model**: Python classes, their methods and how they
+relate. For the same seven tables seen as a *database* — column types, keys,
+constraints, indexes and the generated DDL — see
+[`uml_db_schema.md`](uml_db_schema.md) and [`uml_er_diagram.md`](uml_er_diagram.md).
 
 ---
 
@@ -30,13 +42,13 @@ classDiagram
     namespace Interface {
         class AbstractPersistence {
             <<abstract>>
-            +save_day(stats, events) None*
+            +save_day(stats, events, replace_events, overwrite) None*
             +append_events(events) None*
             +get_stats(days_back) list~DailyStats~*
             +get_events(day_id, limit) list~Event~*
             +get_weekly_summary() list~dict~*
             +save_game(zoo_state) int*
-            +load_game(save_id) ZooState*
+            +load_game(save_id) ZooState|None*
             +list_saves() list~dict~*
             +delete_save(save_id) bool*
             +reset() None*
@@ -53,7 +65,10 @@ classDiagram
             -bool _closed
             +DEFAULT_SLOT int$
             +count_rows(model) int
+            -_assert_day_is_free(session, day_id)$ None
             -_ensure_day_exists(session, day_id)$ None
+            -_assert_unique_ids(zoo_state)$ None
+            -_resolve_parent_links(state)$ None
         }
         class EngineFactory {
             <<module>>
@@ -91,8 +106,10 @@ solid boxes belongs to this module.
 
 ## 2. Interface and implementations
 
-Zoomed in on the abstraction. Every operation is abstract (`*`); neither
-implementation adds a public method the other lacks.
+Zoomed in on the abstraction. Every operation of the contract is abstract
+(`*`). There is exactly one implementation, `ZooDatabase`, and it adds exactly
+one public method the interface does not declare — `count_rows`, a diagnostic
+helper for tests and demos rather than part of the contract.
 
 ```mermaid
 classDiagram
@@ -100,13 +117,13 @@ classDiagram
 
     class AbstractPersistence {
         <<abstract>>
-        +save_day(stats: DailyStats, events: Iterable~Event~, replace_events: bool) None*
+        +save_day(stats: DailyStats, events: Iterable~Event~, replace_events: bool, overwrite: bool) None*
         +append_events(events: Iterable~Event~) None*
         +get_stats(days_back: int) list~DailyStats~*
         +get_events(day_id: int, limit: int) list~Event~*
         +get_weekly_summary() list~dict~*
         +save_game(zoo_state: ZooState) int*
-        +load_game(save_id: int) ZooState*
+        +load_game(save_id: int) ZooState|None*
         +list_saves() list~dict~*
         +delete_save(save_id: int) bool*
         +reset() None*
@@ -122,13 +139,16 @@ classDiagram
         -_closed: bool
         +__init__(database, echo)
         +count_rows(model: type) int
+        -_assert_day_is_free(session, day_id)$ None
         -_ensure_day_exists(session, day_id)$ None
+        -_assert_unique_ids(zoo_state)$ None
+        -_resolve_parent_links(state)$ None
     }
 
     AbstractPersistence <|.. ZooDatabase
 
     note for AbstractPersistence "Abstraction: 11 abstract methods,\nno implementation. Python refuses to\ninstantiate a subclass that misses one.\nThe two concrete methods (__enter__/__exit__)\nare inherited by every implementation."
-    note for ZooDatabase "Stores in SQLite.\nUses Session as unit of work.\nThe only place SQL is written."
+    note for ZooDatabase "Stores in SQLite.\nUses Session as unit of work.\nThe only place sessions are opened\nand queries are issued.\nThe four private static methods are\nguards and helpers — not contract."
 ```
 
 **Why the split matters:** callers are typed against the left-hand box and
@@ -173,6 +193,7 @@ classDiagram
         +animals_died: int
         +is_profitable() bool
         -_check_percentage(field, value) float
+        -_reject_profit_loss(field, value) float
     }
 
     class Event {
@@ -197,6 +218,8 @@ classDiagram
         +reputation: int
         +ticket_price: float
         +total_animals() int
+        +next_animal_id(prefix) str
+        +next_enclosure_id(prefix) str
         -_coerce_time_of_day(field, value) TimeOfDay
     }
 

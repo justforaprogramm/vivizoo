@@ -25,6 +25,13 @@ Three SQLite settings matter here and are applied to **every** connection:
     considerably faster than the default.
 
 Part of the vivizoo project. Module owner: Jannes (database).
+
+Authorship:
+    Drafted with AI assistance and completed under a human-in-the-loop
+    process: every declaration in this file was read, executed and reconciled
+    with ``planning/db_planning/db_requirements.md`` before it was committed.
+    ``db/docs/ai_usage.md`` records what that review covered and the ten
+    defects it caught.
 """
 
 from __future__ import annotations
@@ -32,10 +39,16 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import Engine, create_engine, event
+from sqlalchemy import Engine, create_engine, event, text
 from sqlalchemy.engine import Connection
+from sqlalchemy.exc import SQLAlchemyError
 
-__all__ = ["default_database_path", "build_sqlite_url", "create_db_engine"]
+__all__ = [
+    "default_database_path",
+    "build_sqlite_url",
+    "create_db_engine",
+    "connection_is_healthy",
+]
 
 #: Location of the database file relative to the repository root.
 DATA_DIRECTORY = "data"
@@ -99,12 +112,12 @@ def build_sqlite_url(database: str | Path | None = None) -> str:
     """
     if database is None:
         database = default_database_path()
-    text = str(database)
-    if "://" in text:
-        return text
-    if text == ":memory:":
+    location = str(database)
+    if "://" in location:
+        return location
+    if location == ":memory:":
         return "sqlite:///:memory:"
-    return f"sqlite:///{Path(text).resolve()}"
+    return f"sqlite:///{Path(location).resolve()}"
 
 
 def _apply_sqlite_pragmas(dbapi_connection: Any, _connection_record: Any) -> None:
@@ -179,8 +192,9 @@ def create_db_engine(database: str | Path | None = None, echo: bool = False) -> 
 def connection_is_healthy(connection: Connection) -> bool:
     """Check that a connection can actually execute a statement.
 
-    Handy in the demo script and in a start-up self-check, where a clear
-    early error beats a confusing one later on.
+    Intended for a start-up self-check or a smoke test, where a clear early
+    error beats a confusing one later on. Not currently called anywhere in the
+    module -- ``demo.py`` relies on the operations themselves failing loudly.
 
     Args:
         connection (Connection): An open SQLAlchemy connection.
@@ -195,9 +209,6 @@ def connection_is_healthy(connection: Connection) -> bool:
         2. On a connection that has already been closed the function returns
            ``False`` instead of raising.
     """
-    from sqlalchemy import text
-    from sqlalchemy.exc import SQLAlchemyError
-
     try:
         connection.execute(text("SELECT 1"))
     except SQLAlchemyError:

@@ -6,7 +6,8 @@ implementation: it names the operations, their inputs and their outputs, and
 nothing else.
 
 Why an abstract base class?
-    Calling code accepts an ``AbstractPersistence`` and never imports SQLAlchemy. That has three practical consequences:
+    Calling code accepts an ``AbstractPersistence`` and never imports
+    SQLAlchemy. That has three practical consequences:
 
     * The storage layer can be rewritten freely; as long as these method
       signatures hold, the application does not notice.
@@ -25,6 +26,13 @@ the two sides speak. Calling code therefore imports :mod:`db.models` and :mod:`d
 but never :mod:`db.persistence`.
 
 Part of the vivizoo project. Module owner: Jannes (database).
+
+Authorship:
+    Drafted with AI assistance and completed under a human-in-the-loop
+    process: every declaration in this file was read, executed and reconciled
+    with ``planning/db_planning/db_requirements.md`` before it was committed.
+    ``db/docs/ai_usage.md`` records what that review covered and the ten
+    defects it caught.
 """
 
 from __future__ import annotations
@@ -46,8 +54,11 @@ class AbstractPersistence(ABC):
     * **Atomicity** -- a call either completes fully or changes nothing.
     * **Detached results** -- returned objects stay usable after the call
       returns; the caller never has to worry about sessions.
-    * **Chronological order** -- read methods return oldest first, which is
-      the order charts and chat logs need.
+    * **Chronological order** -- the time-series reads (:meth:`get_stats`,
+      :meth:`get_events`, :meth:`get_weekly_summary`) return oldest first,
+      which is the order charts and chat logs need. :meth:`list_saves` is the
+      deliberate exception and returns newest first, because a load menu wants
+      the most recent save at the top.
     """
 
     # ------------------------------------------------------------------

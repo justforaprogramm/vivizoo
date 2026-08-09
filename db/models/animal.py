@@ -25,6 +25,13 @@ Adding a new species:
     no migration, no new table, no change in the persistence layer.
 
 Part of the vivizoo project. Module owner: Jannes (database).
+
+Authorship:
+    Drafted with AI assistance and completed under a human-in-the-loop
+    process: every declaration in this file was read, executed and reconciled
+    with ``planning/db_planning/db_requirements.md`` before it was committed.
+    ``db/docs/ai_usage.md`` records what that review covered and the ten
+    defects it caught.
 """
 
 from __future__ import annotations
@@ -63,10 +70,21 @@ class Animal(Base):
     """Base class of every animal and the mapping of the ``animals`` table.
 
     Do **not** instantiate this class directly for a real species -- use the
-    subclass (``Lion(...)``) or the factory :func:`create_animal`. Creating
-    ``Animal(species="lion")`` would silently store the discriminator
-    ``"animal"``, because SQLAlchemy derives the discriminator from the
-    *class*, not from the value passed in.
+    subclass (``Lion(...)``) or the factory :func:`create_animal`. Two ways it
+    goes wrong:
+
+    * ``Animal(animal_id="a_01", ...)`` with the species omitted stores the
+      base discriminator ``"animal"``, and the row loads back as a plain
+      ``Animal`` whose ``PREFERRED_FOOD`` is the default ``MEAT`` -- whatever
+      the animal was meant to be.
+    * ``Animal(species="lyon")`` stores the typo verbatim. Nothing rejects it,
+      and on load SQLAlchemy finds no class for that identity.
+
+    Passing a *correct* species string does work -- ``Animal(species="lion")``
+    really does store ``"lion"`` -- but it silently produces an ``Animal``
+    instance rather than a ``Lion``, so the object in memory lacks the
+    subclass behaviour until it has been round-tripped through the database.
+    :func:`create_animal` avoids all three traps.
 
     Attributes:
         animal_id (str): Identifier such as ``"a_01"``. Primary key, assigned
