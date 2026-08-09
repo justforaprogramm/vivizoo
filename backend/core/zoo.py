@@ -9,6 +9,8 @@ lifecycle.
 
 The planning document describes this as the *aggregate root* that the
 :class:`~backend.core.engine.SimulationEngine` drives forward.
+
+Part of the vivizoo project. Module owner: Benjamin (backend).
 """
 
 from __future__ import annotations

@@ -297,7 +297,5 @@ def create_animal(species: str, **fields: Any) -> Animal:
     animal_class = registry.get(species.lower())
     if animal_class is None:
         allowed = ", ".join(sorted(registry))
-        raise ValueError(
-            f"Unknown species {species!r}. Registered species: {allowed}."
-        )
+        raise ValueError(f"Unknown species {species!r}. Registered species: {allowed}.")
     return animal_class(**fields)

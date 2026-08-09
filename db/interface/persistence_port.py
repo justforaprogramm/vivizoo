@@ -175,9 +175,7 @@ class AbstractPersistence(ABC):
         """
 
     @abstractmethod
-    def get_events(
-        self, day_id: int | None = None, limit: int = 100
-    ) -> list[Event]:
+    def get_events(self, day_id: int | None = None, limit: int = 100) -> list[Event]:
         """Read log messages, optionally restricted to one day.
 
         Args:

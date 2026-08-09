@@ -14,6 +14,8 @@ adapter can map backend animals to persisted rows losslessly.
 Encapsulation: the mutable simulation state (``_hunger``, ``_hp``, ...) is
 private and only reachable through documented properties and methods, so no
 caller can push a value outside 0--100.
+
+Part of the vivizoo project. Module owner: Benjamin (backend).
 """
 
 from __future__ import annotations

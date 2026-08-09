@@ -8,6 +8,8 @@ only object the frontend depends on (see ``backend/docs/api.md``).
 A real play session runs the tick loop on a background thread; the demo
 drives ``tick()`` manually, which keeps the module testable and dependency
 free at the core level.
+
+Part of the vivizoo project. Module owner: Benjamin (backend).
 """
 
 from __future__ import annotations
