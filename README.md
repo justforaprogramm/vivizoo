@@ -175,6 +175,24 @@ The module READMEs describe how concrete pytest fixtures and test files can be d
 
 ---
 
+## Code quality (Pylint)
+
+With the project dependencies installed (e.g. in the Devcontainer's virtual
+environment), Pylint over the whole workspace scores a clean **10.00/10**:
+
+```bash
+python3 -m pylint .
+```
+
+> Use `python3 -m pylint` (rather than the bare `pylint`) so Pylint runs in
+> exactly the virtual environment where the project dependencies (SQLAlchemy,
+> PyQt6) are installed — otherwise Pylint reports third-party imports as
+> `E0401 (import-error)` although they actually import fine. The configuration
+> lives in the root [`.pylintrc`](.pylintrc) and is picked up automatically
+> from the repository root.
+
+---
+
 ## Planning
 
 The planning phase is documented per area. The database planning lives under [`planning/db_planning/`](planning/db_planning/) (`backend_core_plan.md`, `db_requirements.md`). The Mermaid designs (class diagrams showing inheritance, composition, aggregation, association, as well as sequence diagrams) are located in the `*_diagram.md` files of the three module documentation folders (see above).
