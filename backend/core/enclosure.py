@@ -161,6 +161,11 @@ class Enclosure:
 
         Returns:
             bool: ``True`` when ``free_slots() == 0``.
+
+        Tests:
+            1. An enclosure with ``capacity=2`` holding two animals returns
+               ``True``, and ``False`` again after one is removed.
+            2. An enclosure built with ``capacity=0`` is full from the start.
         """
         return self.free_slots() == 0
 
@@ -182,11 +187,15 @@ class Enclosure:
 
         Tests:
             1. After enough ticks, ``cleanliness`` drops by ``CLEAN_DECAY``.
-            2. Cleanliness never drops below zero.
+            2. Decaying a filthy enclosure bottoms out at ``0.0`` and never
+               goes negative, however many ticks are run.
         """
         if (tick_counter + self._update_offset) % self.TICKS_PER_CLEAN_UPDATE != 0:
             return
-        self.cleanliness = self._clamp_clean(self.cleanliness - self.CLEAN_DECAY)
+        # Clamp here rather than via _clamp_clean: that validator guards
+        # *caller-supplied* values and raises out of range, while the decay is
+        # an internal computation that simply bottoms out at zero.
+        self.cleanliness = max(0.0, self.cleanliness - self.CLEAN_DECAY)
 
     def clean(self) -> None:
         """Restore the enclosure to full cleanliness.
@@ -199,6 +208,8 @@ class Enclosure:
 
         Tests:
             1. After ``clean()``, ``cleanliness == 100.0``.
+            2. Calling ``clean()`` on an already spotless enclosure leaves
+               ``cleanliness`` at ``100.0``.
         """
         self.cleanliness = 100.0
 
@@ -211,6 +222,12 @@ class Enclosure:
         Returns:
             float: Mean welfare (0--100); ``0.0`` if there are no animals or
             all are dead.
+
+        Tests:
+            1. Two living animals with welfare ``100.0`` and ``50.0`` give
+               ``75.0``.
+            2. An empty enclosure -- and one whose animals all have
+               ``is_dead`` set -- returns ``0.0``.
         """
         live = [a.welfare for a in self.animals if not a.is_dead]
         if not live:
@@ -225,5 +242,10 @@ class Enclosure:
 
         Returns:
             str: Named debug string.
+
+        Tests:
+            1. The string contains the ``enclosure_id``, the ``name`` and the
+               ``len(animals)``/``capacity`` occupancy.
+            2. It is stable across calls on an unchanged enclosure.
         """
         return f"<Enclosure {self.enclosure_id} ({self.name}) {len(self.animals)}/{self.capacity}>"

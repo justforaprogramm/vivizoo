@@ -71,6 +71,9 @@ class Zoo:
         self._revenue_today = 0.0
         self._expenses_today = 0.0
         self._deaths_today = 0
+        # Figures of the just-finished day, frozen by begin_new_day().
+        self._visitors_snapshot = 0
+        self._deaths_snapshot = 0
         self._animal_counter = itertools.count(1)
         self._enclosure_counter = itertools.count(1)
         self._visitor_counter = itertools.count(1)
@@ -117,6 +120,8 @@ class Zoo:
 
         Tests:
             1. The employee is added to ``self.employees``.
+            2. No de-duplication takes place, so adding the same employee
+               object twice leaves two entries in ``self.employees``.
         """
         self.employees.append(employee)
 
@@ -134,6 +139,8 @@ class Zoo:
 
         Tests:
             1. The animal has a fresh ``a_`` identifier and correct enclosure.
+            2. An unknown species such as ``"dragon"`` propagates the
+               ``ValueError`` raised by ``create_animal``.
         """
         identifier = f"a_{next(self._animal_counter):02d}"
         animal = create_animal(
@@ -155,6 +162,12 @@ class Zoo:
 
         Returns:
             Visitor: The new visitor, appended to ``self.visitors``.
+
+        Tests:
+            1. The visitor gets a three-digit ``v_`` identifier and is
+               appended to ``self.visitors``.
+            2. Every spawn pays a ticket, so ``finances.revenue_today`` grows
+               by the ticket price and ``_visitors_today`` by one.
         """
         identifier = f"v_{next(self._visitor_counter):03d}"
         visitor = Visitor(identifier, x, y, lifetime)
@@ -194,6 +207,11 @@ class Zoo:
 
         Returns:
             Enclosure | None: The matching enclosure, or ``None``.
+
+        Tests:
+            1. A registered enclosure is found by its ``e_`` identifier.
+            2. An unknown id returns ``None``, and so does a lookup on a zoo
+               without enclosures.
         """
         for enclosure in self.enclosures:
             if enclosure.enclosure_id == enclosure_id:
@@ -212,6 +230,11 @@ class Zoo:
 
         Returns:
             list[Animal]: The living animals across all enclosures.
+
+        Tests:
+            1. Animals of every enclosure are collected into one flat list.
+            2. Animals with ``is_dead`` set are filtered out, so a zoo without
+               enclosures returns ``[]``.
         """
         return [
             animal
@@ -228,6 +251,11 @@ class Zoo:
 
         Returns:
             list[Animal]: All animals across all enclosures.
+
+        Tests:
+            1. Dead animals are included, so the result is never shorter than
+               :meth:`living_animals`.
+            2. A zoo without enclosures returns ``[]``.
         """
         return [a for enclosure in self.enclosures for a in enclosure.animals]
 
@@ -239,6 +267,12 @@ class Zoo:
 
         Returns:
             float: Mean welfare (0--100); ``0.0`` if none are alive.
+
+        Tests:
+            1. Two living animals with welfare ``100.0`` and ``50.0`` give
+               ``75.0``.
+            2. An empty zoo -- and one whose animals are all dead -- returns
+               ``0.0`` instead of dividing by zero.
         """
         living = self.living_animals()
         if not living:
@@ -253,6 +287,11 @@ class Zoo:
 
         Returns:
             float: A happiness percentage in 0--100.
+
+        Tests:
+            1. With no living animals and weather ``"sun"`` the result is the
+               base ``60.0``.
+            2. Rain costs ``8.0`` points, so the same zoo reports ``52.0``.
         """
         welfare = self.average_welfare()
         base = 60.0 + welfare * 0.35
@@ -263,14 +302,19 @@ class Zoo:
     # Tick-level coordination
     # ------------------------------------------------------------------
 
-    def update_animals(self, tick: int) -> None:
-        """Advance every animal, removing the dead and counting them.
+    def update_animals(self, tick: int, is_night: bool = False) -> None:
+        """Advance every animal and enclosure, removing the dead and counting them.
 
-        Dead animals are removed from their enclosures so they free a slot;
-        fresh deaths increment the daily counter.
+        Each enclosure first ages its own upkeep (cleanliness decay), then
+        every living animal is ticked. ``is_night`` is handed down so the
+        animal's composed :class:`Behaviour` strategies can decide between
+        feeding and resting. Dead animals are removed from their enclosures so
+        they free a slot; fresh deaths increment the daily counter.
 
         Args:
             tick (int): The current simulation tick.
+            is_night (bool): Whether it is currently night, passed on to the
+                animals' behaviour strategies. Defaults to ``False``.
 
         Returns:
             None.
@@ -278,13 +322,16 @@ class Zoo:
         Tests:
             1. After a death, the animal is gone from its enclosure.
             2. Freshly dead animals are counted in ``_deaths_today``.
+            3. Every enclosure's cleanliness decays over enough ticks,
+               because ``update_animals`` also drives ``Enclosure.tick_update``.
         """
         for enclosure in self.enclosures:
+            enclosure.tick_update(tick)
             survivors: list[Animal] = []
             for animal in enclosure.animals:
                 if animal.is_dead:
                     continue
-                animal.tick_update(tick)
+                animal.tick_update(tick, is_night)
                 if animal.is_dead:
                     self._deaths_today += 1
                     self.logger.log(
@@ -311,6 +358,12 @@ class Zoo:
 
         Returns:
             None.
+
+        Tests:
+            1. A visitor whose ``remaining_ticks`` reached ``0`` is dropped
+               from ``self.visitors``.
+            2. A closed zoo (``is_open`` is ``False``) spawns nobody, while
+               the visitors already inside still tick and can leave.
         """
         survivors: list[Visitor] = []
         for visitor in self.visitors:
@@ -333,6 +386,12 @@ class Zoo:
 
         Returns:
             None.
+
+        Tests:
+            1. On a tick that is a multiple of ``20`` every employee's
+               ``perform_job`` runs.
+            2. On any other tick the method returns early and no employee
+               works.
         """
         if tick % 20 != 0:
             return
@@ -344,20 +403,36 @@ class Zoo:
     # ------------------------------------------------------------------
 
     def begin_new_day(self) -> None:
-        """Start a new simulation day: capture yesterday's numbers.
+        """Start a new simulation day: capture yesterday's numbers and age the animals.
 
         Moves today's running totals into the daily snapshot fields used by
-        the persistence adapter, then resets the daily counters.
+        the persistence adapter, resets the daily counters and grows every
+        animal one day older -- this is the only place ``age_one_day()`` is
+        driven from.
 
         Args:
             None.
 
         Returns:
             None.
+
+        Tests:
+            1. Yesterday's revenue is captured before the finances are reset.
+            2. Every animal's ``age_days`` has grown by exactly one.
+            3. Visitor and death counters start the new day at ``0``, so two
+               consecutive days never report cumulative figures.
         """
         self._revenue_today = self.finances.revenue_today
         self._expenses_today = self.finances.expenses_today
+        # Capture the running counters, then zero them for the new day --
+        # daily_snapshot() reads the captured values, not the live ones.
+        self._visitors_snapshot = self._visitors_today
+        self._deaths_snapshot = self._deaths_today
         self.finances.start_new_day()
+        self._visitors_today = 0
+        self._deaths_today = 0
+        for animal in self.all_animals():
+            animal.age_one_day()
 
     def daily_snapshot(self) -> dict:
         """Return the persisted figures for the just-finished day.
@@ -372,16 +447,19 @@ class Zoo:
 
         Tests:
             1. The dict contains every key the persistence adapter needs.
+            2. ``revenue`` and ``expenses`` report the figures captured by
+               ``begin_new_day()``, i.e. yesterday's totals, not the running
+               ones on ``self.finances``.
         """
         return {
             "day_id": self.current_day,
-            "total_visitors": self._visitors_today,
+            "total_visitors": self._visitors_snapshot,
             "revenue": self._revenue_today,
             "expenses": self._expenses_today,
             "avg_animal_welfare": self.average_welfare(),
             "avg_happiness": self.average_happiness(),
             "reputation_end_of_day": self.reputation,
-            "animals_died": self._deaths_today,
+            "animals_died": self._deaths_snapshot,
         }
 
     # ------------------------------------------------------------------

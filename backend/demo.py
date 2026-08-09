@@ -66,6 +66,14 @@ def run_demo(use_db: bool) -> int:
 
     Returns:
         int: Process exit code -- ``0`` on success.
+
+    Tests:
+        1. ``run_demo(False)`` returns ``0`` and leaves ``persistence`` unset,
+           so the ``[5]`` database section is skipped entirely.
+        2. ``run_demo(True)`` also returns ``0``, ticking on until
+           ``_tick_count`` is a multiple of ``TICKS_PER_DAY`` so a day
+           closes, then reporting ``get_stats(7)`` and closing the
+           ``":memory:"`` database.
     """
     logger = MessageLogger.instance()
     logger.clear()

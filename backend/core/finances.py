@@ -58,6 +58,11 @@ class Finances:
 
         Returns:
             float: Money currently available.
+
+        Tests:
+            1. A fresh ``Finances()`` reports ``balance == 5000.0``.
+            2. Assigning to ``balance`` raises ``AttributeError`` because the
+               property has no setter.
         """
         return self._balance
 
@@ -67,6 +72,11 @@ class Finances:
 
         Returns:
             float: Today's revenue.
+
+        Tests:
+            1. A fresh budget reports ``revenue_today == 0.0``.
+            2. After ``earn(20.0)`` it is ``20.0``; a later ``spend`` leaves it
+               unchanged.
         """
         return self._revenue_today
 
@@ -76,6 +86,11 @@ class Finances:
 
         Returns:
             float: Today's expenses.
+
+        Tests:
+            1. A fresh budget reports ``expenses_today == 0.0``.
+            2. A ``spend`` that returns ``False`` (insufficient balance) leaves
+               ``expenses_today`` unchanged.
         """
         return self._expenses_today
 
@@ -132,6 +147,9 @@ class Finances:
 
         Tests:
             1. After a ticket payment, ``revenue_today`` grew by the price.
+            2. The return value equals ``ticket_price``, so after
+               ``set_ticket_price(0.0)`` it returns ``0.0`` and the balance is
+               unchanged.
         """
         self.earn(self.ticket_price)
         return self.ticket_price
@@ -151,6 +169,7 @@ class Finances:
         Tests:
             1. After a call both ``revenue_today`` and ``expenses_today`` are
                zero.
+            2. ``balance`` and ``ticket_price`` are untouched by the reset.
         """
         self._revenue_today = 0.0
         self._expenses_today = 0.0
@@ -181,6 +200,12 @@ class Finances:
         Returns:
             dict: With ``money``, ``revenue``, ``expenses`` and
             ``ticket_price``.
+
+        Tests:
+            1. A fresh budget renders ``money`` as ``5000.0`` with ``revenue``
+               and ``expenses`` at ``0.0`` and ``ticket_price`` at ``12.5``.
+            2. ``money`` follows the balance, so after ``spend(500.0)`` the
+               dict reports ``4500.0``.
         """
         return {
             "money": round(self._balance, 2),
@@ -197,5 +222,10 @@ class Finances:
 
         Returns:
             str: Named debug string.
+
+        Tests:
+            1. The string contains the balance with two decimals, e.g.
+               ``<Finances balance=5000.00>``.
+            2. It is stable across calls on an unchanged object.
         """
         return f"<Finances balance={self._balance:.2f}>"

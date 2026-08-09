@@ -18,7 +18,7 @@ class Visitor:
     """A single guest inside the zoo.
 
     Args:
-        visitor_id (str): Unique identifier, e.g. ``"v_99"``.
+        visitor_id (str): Unique identifier, e.g. ``"v_001"``.
         x (int), y (int): Spawn position (the gate).
         remaining_ticks (int): How many ticks the visitor stays.
 
@@ -68,7 +68,10 @@ class Visitor:
             None.
 
         Tests:
-            1. Position changes by a small bounded amount.
+            1. With ``random.randint`` patched to ``1``, both coordinates
+               grow by exactly one.
+            2. Each coordinate shifts by at most ``2`` per call, so a drawn
+               step of ``0`` leaves the position unchanged.
         """
         self.x += random.randint(-2, 2)
         self.y += random.randint(-2, 2)
@@ -83,7 +86,9 @@ class Visitor:
             None.
 
         Tests:
-            1. ``remaining_ticks`` drops by one; position changed.
+            1. ``remaining_ticks`` drops by one and :meth:`move` runs once.
+            2. At ``remaining_ticks == 0`` the counter stays at ``0`` and
+               never goes negative, while :meth:`move` still runs.
         """
         if self.remaining_ticks > 0:
             self.remaining_ticks -= 1
@@ -100,6 +105,7 @@ class Visitor:
 
         Tests:
             1. Starting at ``1``, after one :meth:`tick` it returns ``True``.
+            2. A visitor with ``remaining_ticks=5`` returns ``False``.
         """
         return self.remaining_ticks == 0
 
@@ -114,6 +120,8 @@ class Visitor:
 
         Tests:
             1. The dict exposes the three map keys.
+            2. ``id`` repeats ``visitor_id`` verbatim and ``x``/``y`` mirror
+               the current position; ``remaining_ticks`` is not included.
         """
         return {"id": self.visitor_id, "x": self.x, "y": self.y}
 
@@ -125,5 +133,10 @@ class Visitor:
 
         Returns:
             str: Named debug string.
+
+        Tests:
+            1. The string contains the ``visitor_id``, the coordinates and
+               the remaining tick count.
+            2. It is stable across calls on an unchanged visitor.
         """
         return f"<Visitor {self.visitor_id} ({self.x},{self.y}) {self.remaining_ticks} ticks>"

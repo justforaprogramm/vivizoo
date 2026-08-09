@@ -50,6 +50,12 @@ class ActionResult:
 
         Returns:
             dict: With ``success``, ``message`` and ``chat_entries``.
+
+        Tests:
+            1. ``ActionResult(True, "ok").to_dict()`` equals ``{"success":
+               True, "message": "ok", "chat_entries": []}``.
+            2. The dict always carries exactly those three keys, and
+               ``chat_entries`` holds the entries the action produced.
         """
         return {
             "success": self.success,
@@ -73,6 +79,12 @@ class ActionHandler:
 
         Returns:
             None (constructor).
+
+        Tests:
+            1. The handler keeps the given zoo, so ``execute_action("clean",
+               enclosure_id="e_01")`` cleans that zoo's enclosure.
+            2. Constructing a handler changes nothing: the zoo's
+               ``finances.balance`` and ``enclosures`` list stay as they were.
         """
         self._zoo = zoo
 
@@ -122,6 +134,15 @@ class ActionHandler:
 
         Returns:
             ActionResult: Summary of animals fed and food used.
+
+        Tests:
+            1. With ``MEAT`` in stock a lion at hunger ``60.0`` (above its
+               threshold of ``35.0``) is fed one unit and drops to ``25.0``.
+            2. On a fresh zoo the inventory is empty, so nothing is fed, yet
+               ``success`` is still ``True`` and the food detail reads
+               ``none``.
+            3. Dead animals and animals below their feeding threshold are
+               skipped without consuming any stock.
         """
         fed = 0
         food_used: dict[str, int] = {}
@@ -149,6 +170,14 @@ class ActionHandler:
 
         Returns:
             ActionResult: Outcome of the single feed.
+
+        Tests:
+            1. With one ``FISH`` in stock a penguin at hunger ``40.0`` is fed
+               and drops to ``5.0``, and ``success`` is ``True``.
+            2. An unknown ``animal_id`` returns ``success`` ``False`` with the
+               message ``No animal with id a_99.`` and consumes no stock.
+            3. With an empty inventory the message is ``No FISH left in
+               stock.`` and the animal's hunger is unchanged.
         """
         animal = self._zoo.find_animal(animal_id or "")
         if animal is None:
@@ -175,6 +204,15 @@ class ActionHandler:
 
         Returns:
             ActionResult: Outcome of the healing.
+
+        Tests:
+            1. A wounded animal gains ``25.0`` health (clamped at ``100.0``)
+               and one active status effect is popped, so the message reads
+               ``Healed <name>. Status effect cleared.``.
+            2. A dead animal fails with ``<name> is dead.`` and keeps its
+               health unchanged.
+            3. An unknown ``animal_id`` returns ``success`` ``False`` with
+               ``No animal with id a_99.``.
         """
         animal = self._zoo.find_animal(animal_id or "")
         if animal is None:
@@ -199,6 +237,16 @@ class ActionHandler:
 
         Returns:
             ActionResult: Outcome of the purchase.
+
+        Tests:
+            1. ``_action_buy_food(amount=2, food="MEAT")`` withdraws ``16.00``
+               (``2`` at the ``8.0`` unit price) and adds two ``MEAT`` to the
+               inventory.
+            2. An unrecognised key such as ``food="STEAK"`` returns
+               ``success`` ``False`` with ``Unknown food type 'STEAK'.`` and
+               spends nothing.
+            3. ``amount=0`` is rejected with ``amount must be positive.``, and
+               omitting the food key entirely defaults to ``FoodType.MEAT``.
         """
         food_key = kw.pop("type", kw.pop("food", None))
         try:
@@ -235,6 +283,16 @@ class ActionHandler:
 
         Returns:
             ActionResult: Outcome of the purchase.
+
+        Tests:
+            1. Buying a ``penguin`` into an enclosure with a free slot spends
+               its ``BUY_PRICE`` of ``400.00`` and the new animal is then
+               reachable through ``Zoo.find_animal``.
+            2. An unknown species returns ``success`` ``False`` with
+               ``Unknown species 'dragon'.`` before any money is spent.
+            3. An ``enclosure_id`` matching nothing falls back to the zoo's
+               first enclosure; with no enclosures at all the message is
+               ``No enclosure exists yet.``.
         """
         if species not in known_species():
             return ActionResult(False, f"Unknown species {species!r}.")
@@ -270,6 +328,12 @@ class ActionHandler:
 
         Returns:
             ActionResult: Outcome of the cleaning.
+
+        Tests:
+            1. Cleaning ``e_01`` puts that enclosure's ``cleanliness`` back to
+               ``100.0`` and returns ``success`` ``True``.
+            2. An unknown id returns ``success`` ``False`` with ``No enclosure
+               with id e_99.`` and no ``chat_entries``.
         """
         enclosure = self._zoo.find_enclosure(enclosure_id or "")
         if enclosure is None:

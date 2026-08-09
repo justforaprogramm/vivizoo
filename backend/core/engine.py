@@ -109,7 +109,7 @@ class SimulationEngine:
 
         Tests:
             1. Starting twice does not spawn a second thread.
-            2. A paused engine keeps ticking until paused again later.
+            2. After ``start()`` the tick counter advances on its own.
         """
         if self._thread is not None and self._thread.is_alive():
             return
@@ -125,6 +125,12 @@ class SimulationEngine:
 
         Returns:
             None.
+
+        Tests:
+            1. While ``_paused`` is set the loop only sleeps and the tick
+               counter stays where it was.
+            2. Setting ``_stop`` ends the loop, so ``_run()`` returns instead
+               of ticking forever.
         """
         while not self._stop:
             if not self._paused:
@@ -139,6 +145,12 @@ class SimulationEngine:
 
         Returns:
             None.
+
+        Tests:
+            1. After ``pause()`` the background loop stops calling ``tick()``,
+               so the tick counter no longer grows.
+            2. Calling ``pause()`` twice is harmless and leaves the engine
+               paused; a direct ``tick()`` call still works.
         """
         self._paused = True
 
@@ -150,6 +162,12 @@ class SimulationEngine:
 
         Returns:
             None.
+
+        Tests:
+            1. ``pause()`` followed by ``resume()`` lets the background loop
+               advance the tick counter again.
+            2. ``resume()`` on an engine that was never paused leaves it
+               running and raises nothing.
         """
         self._paused = False
 
@@ -199,7 +217,7 @@ class SimulationEngine:
         else:
             self._zoo.is_open = True
 
-        self._zoo.update_animals(self._tick_count)
+        self._zoo.update_animals(self._tick_count, phase == TimeOfDay.NIGHT)
         self._zoo.update_visitors((50, 50))
         self._zoo.update_staff(self._tick_count)
         self._zoo.scheduler.check(self._zoo, self._tick_count)
@@ -239,6 +257,11 @@ class SimulationEngine:
         Returns:
             dict: With ``system``, ``finances``, ``inventory``,
             ``animals_on_map`` and ``visitors_on_map``.
+
+        Tests:
+            1. The ``system`` block carries the current ``tick_count`` and a
+               ``time_of_day`` string such as ``"MORNING"``.
+            2. On a zoo without visitors ``visitors_on_map`` is ``[]``.
         """
         phase = self._phase_of(self._tick_count).value
         return self._zoo.to_game_state(self._tick_count, phase)
@@ -251,6 +274,12 @@ class SimulationEngine:
 
         Returns:
             dict: Tooltip data, or ``{}`` if unknown.
+
+        Tests:
+            1. For an animal id such as ``"a_01"`` the hover data carries
+               ``name``, ``hunger`` and ``status_effects``.
+            2. An unknown id returns ``{}``; an enclosure id such as
+               ``"e_01"`` returns ``cleanliness`` and ``free_slots`` instead.
         """
         animal = self._zoo.find_animal(entity_id)
         if animal is not None:
@@ -274,6 +303,12 @@ class SimulationEngine:
 
         Returns:
             list[dict]: New log entries in the order they were produced.
+
+        Tests:
+            1. Entries logged since the last call come back as dicts holding
+               ``tick_count``, ``type`` and ``text``.
+            2. A second call straight after returns ``[]``, because
+               ``drain()`` empties the buffer.
         """
         return [entry.to_dict() for entry in self._logger.drain()]
 
@@ -290,6 +325,11 @@ class SimulationEngine:
 
         Raises:
             ValueError: If ``action_name`` is unknown.
+
+        Tests:
+            1. ``execute_action("clean", enclosure_id="e_01")`` returns a dict
+               with the keys ``success``, ``message`` and ``chat_entries``.
+            2. An unsupported name such as ``"fly"`` raises ``ValueError``.
         """
         return ActionHandler(self._zoo).execute_action(action_name, **kwargs).to_dict()
 
@@ -302,6 +342,12 @@ class SimulationEngine:
         Returns:
             list[dict]: Daily summaries, oldest first; ``[]`` without a
             persistence adapter.
+
+        Tests:
+            1. Without a persistence adapter ``get_stats()`` returns ``[]``
+               and never touches storage.
+            2. With an adapter the call is forwarded unchanged, so
+               ``get_stats(7)`` reaches ``fetch_stats(7)``.
         """
         if self._persistence is None:
             return []
@@ -315,6 +361,11 @@ class SimulationEngine:
 
         Returns:
             str: Named debug string.
+
+        Tests:
+            1. The string contains ``SimulationEngine``, the current tick
+               count and the phase name.
+            2. It is stable across calls as long as the engine does not tick.
         """
         return (
             f"<SimulationEngine tick={self._tick_count} "
