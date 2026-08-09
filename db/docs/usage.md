@@ -1,5 +1,11 @@
 # Usage Guide
 
+> **Authorship.** Drafted with AI assistance and completed under a
+> human-in-the-loop process: reviewed, executed and reconciled with
+> [`planning/db_planning/db_requirements.md`](../../planning/db_planning/db_requirements.md) before being
+> committed. The process record — including the ten defects that review
+> caught — is in [`ai_usage.md`](ai_usage.md).
+
 How to use the database module. No SQL knowledge required — you create
 objects and call methods.
 
@@ -113,7 +119,7 @@ If a run should survive being closed, call **both** at the end of the day:
 
 ```python
 storage.save_day(stats, messages)     # ~3 ms
-storage.save_game(zoo_state)          # ~26 ms for 50 animals
+storage.save_game(zoo_state)          # ~18 ms for 50 animals
 ```
 
 ---
@@ -236,17 +242,36 @@ Two cases deliberately stay unaffected:
 
 `save_day()` treats figures and messages differently, on purpose:
 
-- **`stats` is replaced.** Calling it again for the same `day_id` overwrites
-  the row instead of failing.
+- **`stats` is refused** when the day already holds figures — see the section
+  above. `overwrite=True` replaces them deliberately.
 - **`events` are appended.** That is what lets `append_events()` store
   messages during the day without the day-end call wiping them.
 
-So calling `save_day()` twice with the same events stores them twice. When
-the day's log should become exactly what you hand in:
+The asymmetry is the point. Figures are written once per day, so a repeat is
+almost certainly a bug. Messages arrive in several batches over the course of
+that same day, and all of them belong to it.
+
+The two flags are independent switches — `replace_events` governs the
+messages, `overwrite` the figures:
+
+| Call | Figures | Messages |
+|---|---|---|
+| `save_day(stats, events)` | refused if the day already has figures | appended |
+| `save_day(stats, events, replace_events=True)` | refused if the day already has figures | become exactly `events` |
+| `save_day(stats, events, overwrite=True)` | replaced | appended |
+| `save_day(stats, events, replace_events=True, overwrite=True)` | replaced | become exactly `events` |
+
+`replace_events=True` on its own needs no `overwrite`, and that combination is
+the normal day-end call when messages were flushed during the day:
 
 ```python
-storage.save_day(stats, events, replace_events=True)
+storage.append_events([...])                              # mid-day, several times
+storage.save_day(stats, all_todays_events, replace_events=True)
 ```
+
+The placeholder row `append_events()` created counts as free, so the figures go
+in, and the day's log ends up holding exactly the set you hand over rather than
+the mid-day batches plus a duplicate of them.
 
 A *failed* call writes nothing at all, so retrying after an error is always
 safe.
@@ -751,6 +776,7 @@ leftovers between tests, and no mocking needed.
 | `ValueError: type='PANIC' is not a valid EventType` | Unknown message type | Use `INFO`, `WARNING`, `ERROR` or `SUCCESS` |
 | `ValueError: profit_loss is computed by the database` | `profit_loss` was passed in | Set `revenue` and `expenses`; the value appears on read |
 | `ValueError: Day 2 already holds recorded figures` | The same `day_id` twice | Advance your day counter, or pass `overwrite=True` if intended |
+| `ValueError: append_events() requires a day_id on every event` | An event with no `day_id` handed to `append_events()` | Set `Event.day_id`, or pass the messages to `save_day()`, which fills it in |
 | `ValueError: Duplicate animal_id 'a_01'` | The same identifier twice in one savegame | Use `zoo.next_animal_id()` |
 | `ValueError: Unknown species 'dragon'` | No class for that species | Add the class (see above) |
 | `InvalidRequestError: 'DailyStats.events' is not available` | Reading `.events` on a `get_stats()` result | Use `get_events()` |
@@ -761,15 +787,16 @@ leftovers between tests, and no mocking needed.
 
 ## Performance
 
-Measured on Python 3.14 with SQLite 3.53:
+Median of seven runs on Python 3.14.6 with SQLite 3.53.3, in-process, warm
+cache. Absolute values depend on the machine; the ratios are the point.
 
 | Operation | Cost |
 |---|---|
-| `save_day()` with 50 messages | ~3 ms |
+| `save_day()` with 50 messages | ~3.4 ms |
 | `save_day()` with 200 messages | ~9.5 ms |
-| `get_stats(30)` | ~0.5 ms |
+| `get_stats(30)` | ~0.4 ms |
 | `get_events(100)` | ~0.7 ms |
-| `get_weekly_summary()` | ~0.4 ms |
+| `get_weekly_summary()` | ~0.15 ms |
 
 The module is designed to be written **once per simulation day**, not per
 tick. A simulation running at 20 ticks per second has a 50 ms budget per
@@ -808,10 +835,13 @@ contract does not promise.
 | Document | Contents |
 |---|---|
 | [`architecture.md`](architecture.md) | Design decisions, layering, limitations |
-| [`uml_class_diagram.md`](uml_class_diagram.md) | Class diagrams |
-| [`uml_er_diagram.md`](uml_er_diagram.md) | Database schema |
+| [`uml_class_diagram.md`](uml_class_diagram.md) | Class diagrams — the object model |
+| [`uml_db_schema.md`](uml_db_schema.md) | Schema diagram — tables, types, keys, constraints, plus the real DDL |
+| [`uml_er_diagram.md`](uml_er_diagram.md) | ER diagram — the relationships between tables |
 | [`uml_sequence_diagrams.md`](uml_sequence_diagrams.md) | What happens on each call |
 | [`test_plan.md`](test_plan.md) | Test strategy and cases |
+| [`ai_usage.md`](ai_usage.md) | AI use and the human-in-the-loop review |
+| [`reflexion.md`](reflexion.md) | Personal reflection — written by hand, without AI |
 
 Every method is documented in full — arguments, return value, exceptions and
 test cases — in

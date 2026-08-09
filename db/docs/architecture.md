@@ -1,5 +1,11 @@
 # Database Architecture
 
+> **Authorship.** Drafted with AI assistance and completed under a
+> human-in-the-loop process: reviewed, executed and reconciled with
+> [`planning/db_planning/db_requirements.md`](../../planning/db_planning/db_requirements.md) before being
+> committed. The process record — including the ten defects that review
+> caught — is in [`ai_usage.md`](ai_usage.md).
+
 Design decisions of the persistence layer, and the reasoning behind them.
 
 ---
@@ -30,21 +36,26 @@ Design decisions of the persistence layer, and the reasoning behind them.
               data/zoo.sqlite
 ```
 
-**The rule that holds it together:** the module imports nothing from the
-code that uses it, and callers import nothing from `db.persistence`. Only
-model objects and enums cross the boundary.
+**The rule that holds it together:** the module imports nothing from the code
+that uses it, and callers import nothing from `db.persistence`. What crosses
+the boundary is `AbstractPersistence`, the model objects and the enums — plus
+the single `ZooDatabase` construction at the application's entry point.
 
 This is not a convention to remember, it is checkable — this must print
 nothing:
 
 ```bash
-grep -rnE "^\s*(from|import) db\.persistence" --include="*.py" . | grep -v "^./db/persistence"
+grep -rnE "^[[:space:]]*(from|import) db\.persistence" \
+     --include="*.py" . --exclude-dir=.venv --exclude-dir=db
 ```
 
 The pattern is anchored to real import statements and restricted to `*.py`,
 so prose that merely mentions a module does not trigger a false positive.
 
-Each layer talks only to its immediate neighbour.
+The diagram shows the dependency *direction*, not a strict chain: the
+persistence layer imports `db.interface` as well as `db.models`, because it has
+to implement the contract. What holds without exception is the direction —
+nothing in `db.interface` or `db.models` imports `db.persistence`.
 
 ---
 
@@ -68,6 +79,15 @@ ZooDatabase("sqlite:///data/zoo.sqlite")
 ZooDatabase("postgresql://user@host/vivizoo")   # same code
 ```
 
+**One caveat, stated rather than glossed over.** The ORM-mapped tables port
+unchanged, and the SQLite pragmas are already dialect-guarded. The two SQL
+views in `persistence/views.py` are not: they are registered with
+`execute_if(dialect="sqlite")`, so a `postgresql://` URL creates the tables but
+no views — verified by emitting the schema against a mock engine (2 `CREATE
+VIEW` on SQLite, 0 on PostgreSQL). `get_weekly_summary()` reads
+`v_weekly_summary` directly, so it is the single method that would need
+porting. Everything else is genuinely a one-string change.
+
 ---
 
 ## 3. Why an ORM, and how object orientation survives it
@@ -82,7 +102,7 @@ With SQLAlchemy the object-oriented work moves to where it belongs, the
 
 | Principle | Where it lives |
 |---|---|
-| **Abstraction** | `AbstractPersistence` — an abstract base class naming operations without implementing any. |
+| **Abstraction** | `AbstractPersistence` — an abstract base class naming the eleven storage operations without implementing any (only the shared `with`-block support is concrete). |
 | **Inheritance** | `Animal` → `Lion` / `Giraffe` / `Penguin`; `TimestampMixin` contributes a column to several tables via multiple inheritance. |
 | **Polymorphism** | The `species` column is a discriminator: reading animals returns the correct subclass, so `PREFERRED_FOOD` resolves per species without a single type check. |
 | **Encapsulation** | `@validates` hooks reject invalid values on assignment; the same rules exist a second time as `CHECK` constraints in the schema. |
@@ -113,7 +133,7 @@ This is the decision the whole performance story rests on.
 |---|---|---|
 | Every tick (up to 20/s) | **nothing.** The disk is not touched. | 0 ms |
 | End of a simulation day | one `daily_stats` row plus that day's messages, batched | ~3 ms |
-| A savegame is written | the complete zoo graph | ~50–100 ms, once |
+| A savegame is written | the complete zoo graph | ~18 ms for 50 animals, once |
 
 At 20 ticks per second a tick has 50 ms. The database uses none of it,
 because live state stays in the caller's memory and only summaries are
@@ -224,11 +244,43 @@ no gain, because the species differ in *behaviour* (`PREFERRED_FOOD`), not in
 constraint, instead of as opaque integers. The database stays readable in any
 SQLite browser, and adding a value is a one-line change.
 
-### `save_game()` deletes before inserting
+### `save_game()` deletes before inserting — and then merges
 
 Replacing a slot deletes the old graph first and inserts the new one, inside
-one transaction. Merging instead would leave animals behind that the player
-had sold or that had died — the save would slowly accumulate ghosts.
+one transaction. Merging into the existing rows instead would leave animals
+behind that the player had sold or that had died — the save would slowly
+accumulate ghosts.
+
+The insert half then uses `merge()` rather than `add()`, which looks redundant
+after a delete and is not. The graph handed in has usually just come back from
+`load_game()`, because load–play–save is *the* normal cycle. Such a graph still
+carries its database identity, so `add()` treats it as an existing row and
+emits `UPDATE` statements against rows the same transaction has just deleted —
+a `StaleDataError` on the one code path that matters most. `expunge_all()`
+followed by `merge()` handles a freshly built graph and a loaded one
+identically.
+
+### A day is written once
+
+`save_day()` refuses a `day_id` that already holds figures instead of replacing
+it. Overwriting is destructive in two ways at once: the earlier day's numbers
+disappear *and* both days' messages end up merged under one id, with nothing
+afterwards revealing that a day went missing. The realistic cause is a day
+counter that failed to advance, which is a bug worth surfacing rather than
+absorbing. `overwrite=True` exists for the deliberate case.
+
+Messages behave the opposite way — they append — because `append_events()` must
+be able to flush the queue mid-day without the day-end call wiping the result.
+`replace_events=True` inverts that. The two flags are independent.
+
+### Registering the views is idempotent
+
+`register_views()` is called from every `ZooDatabase.__init__`, and
+SQLAlchemy's `event.listen` appends rather than replaces. Without a guard, a
+second instance would attach the two DDL statements a second time and every
+`create_all()` would re-issue all of them — growing without bound in a test
+suite that builds one in-memory database per case. The guard makes repeated
+registration free rather than merely harmless.
 
 ---
 
@@ -250,13 +302,28 @@ into the table.
 one write per simulation day this never comes up, but a background writer
 would need its own connection.
 
+**A real all-zero day has no overwrite protection.** `_assert_day_is_free()`
+treats a `daily_stats` row whose every figure is zero as free to fill in,
+because that is exactly what `append_events()` leaves behind when messages
+arrive before a day is closed. A genuine day on which nothing happened — no
+visitors, no revenue, no expenses, no deaths — is indistinguishable from that
+placeholder and can therefore be overwritten silently.
+
+Telling the two apart needs a marker column on `daily_stats`, and the schema is
+agreed in `planning/db_planning/db_requirements.md`; changing it unilaterally
+would break the thing the planning document is for. The alternative — treating
+every existing row as occupied — would break the flush-then-close-the-day flow,
+which is a real feature rather than a hypothetical day. So the narrower gap was
+accepted knowingly. It is recorded as case X-11 in `test_plan.md` so it stays
+visible.
+
 ---
 
 ## 8. File map
 
 | File | Responsibility |
 |---|---|
-| `interface/persistence_port.py` | The contract. No implementation. |
+| `interface/persistence_port.py` | The contract. No storage implementation — the eleven abstract operations plus shared `with`-block support. |
 | `interface/enums.py` | Shared value sets. |
 | `models/base.py` | Declarative base, timestamp mixin, serialisation, default handling. |
 | `models/*.py` | One table each. |
@@ -266,3 +333,19 @@ would need its own connection.
 | `demo.py` | Runnable end-to-end example. |
 
 One responsibility per file, as required.
+
+### The documents
+
+| File | Answers |
+|---|---|
+| `README.md` | What is this and how do I run it? |
+| `docs/usage.md` | How do I call it? |
+| `docs/architecture.md` | Why does it look like this? (this file) |
+| `docs/uml_class_diagram.md` | What are the classes and how do they relate? |
+| `docs/uml_db_schema.md` | What does the schema look like — types, keys, constraints, DDL? |
+| `docs/uml_er_diagram.md` | How do the tables relate, and what do the views and indexes do? |
+| `docs/uml_sequence_diagrams.md` | What happens, step by step, on each call? |
+| `docs/test_plan.md` | What would be tested, and why those cases? |
+| `docs/criteria_audit.md` | Where is the evidence for each assessment criterion? |
+| `docs/ai_usage.md` | How was AI used, and what did the review catch? |
+| `docs/reflexion.md` | What did I take away from it? (my own words, no AI) |

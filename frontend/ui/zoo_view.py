@@ -30,7 +30,7 @@ from frontend.ui.zoo_scene import ZooScene
 
 _ZOOM_MIN = 0.3
 _ZOOM_MAX = 3.0
-_ZOOM_STEP = 1.15   # 15 % per wheel notch
+_ZOOM_STEP = 1.15  # 15 % per wheel notch
 
 
 class ZooGraphicsView(QGraphicsView):
@@ -94,7 +94,9 @@ class ZooGraphicsView(QGraphicsView):
             return
         factor = _ZOOM_STEP if event.angleDelta().y() > 0 else 1 / _ZOOM_STEP
         current = self.transform().m11()
-        if (factor > 1 and current >= _ZOOM_MAX) or (factor < 1 and current <= _ZOOM_MIN):
+        if (factor > 1 and current >= _ZOOM_MAX) or (
+            factor < 1 and current <= _ZOOM_MIN
+        ):
             return
         self.scale(factor, factor)
 

@@ -9,6 +9,13 @@ phase -- never per tick. See ``db/docs/architecture.md``, section
 "When is data written".
 
 Part of the vivizoo project. Module owner: Jannes (database).
+
+Authorship:
+    Drafted with AI assistance and completed under a human-in-the-loop
+    process: every declaration in this file was read, executed and reconciled
+    with ``planning/db_planning/db_requirements.md`` before it was committed.
+    ``db/docs/ai_usage.md`` records what that review covered and the ten
+    defects it caught.
 """
 
 from __future__ import annotations

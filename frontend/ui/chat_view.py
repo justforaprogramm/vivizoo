@@ -99,7 +99,6 @@ class ChatlogWidget(QWidget):
                 f"</span>"
             )
 
-        current_html = self._text_edit.toHtml()
         self._text_edit.append("<br>".join(html_parts))
         self._entry_count += len(messages)
 
@@ -127,7 +126,5 @@ class ChatlogWidget(QWidget):
         lines = self._text_edit.toPlainText().split("\n")
         if len(lines) > _MAX_ENTRIES:
             self._text_edit.clear()
-            self._text_edit.setPlainText(
-                "\n".join(lines[-_MAX_ENTRIES:])
-            )
+            self._text_edit.setPlainText("\n".join(lines[-_MAX_ENTRIES:]))
             self._entry_count = _MAX_ENTRIES

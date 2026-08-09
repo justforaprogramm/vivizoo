@@ -17,4 +17,6 @@ Only :mod:`backend.persistence` may import from ``db``; the domain in
 
 from __future__ import annotations
 
+from backend.persistence.db_gateway import DbGateway
+
 __all__ = ["DbGateway"]

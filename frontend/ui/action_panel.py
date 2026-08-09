@@ -10,9 +10,8 @@ Tests:
 """
 
 from __future__ import annotations
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QSizePolicy
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QSizePolicy
 from PyQt6.QtCore import pyqtSignal, Qt
-from PyQt6.QtGui import QFont
 from frontend.ui.styled_widgets import styled_button
 from frontend.core.constants import C_TEXT, SPECIES_FOOD
 
@@ -53,13 +52,20 @@ class ActionPanel(QWidget):
         self._btn_heal = styled_button("Tier heilen")
         self._btn_clean = styled_button("Gehege reinigen")
 
-        self._btn_feed_all.clicked.connect(lambda: self.action_triggered.emit("feed_all", {}))
+        self._btn_feed_all.clicked.connect(
+            lambda: self.action_triggered.emit("feed_all", {})
+        )
         self._btn_feed_one.clicked.connect(lambda: self._emit_selected("feed_one"))
         self._btn_heal.clicked.connect(lambda: self._emit_selected("heal"))
         self._btn_clean.clicked.connect(lambda: self._emit_enclosure("clean"))
 
         # Size policy — let buttons expand to fill width
-        for btn in [self._btn_feed_all, self._btn_feed_one, self._btn_heal, self._btn_clean]:
+        for btn in [
+            self._btn_feed_all,
+            self._btn_feed_one,
+            self._btn_heal,
+            self._btn_clean,
+        ]:
             btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             layout.addWidget(btn)
 
@@ -68,8 +74,12 @@ class ActionPanel(QWidget):
         self._selected_animal_id: str | None = None
         self._selected_enclosure_id: str | None = None
 
-    def update_state(self, game_state: dict, selected_animal_id: str | None,
-                     selected_enclosure_id: str | None) -> None:
+    def update_state(
+        self,
+        game_state: dict,
+        selected_animal_id: str | None,
+        selected_enclosure_id: str | None,
+    ) -> None:
         """Enable or disable buttons based on current game state and selection.
 
         Args:
@@ -87,7 +97,9 @@ class ActionPanel(QWidget):
         self._selected_enclosure_id = selected_enclosure_id
         inv: dict = game_state.get("inventory", {})
         animals: list = game_state.get("animals_on_map", [])
-        any_food = inv.get("MEAT", 0) > 0 or inv.get("PLANTS", 0) > 0 or inv.get("FISH", 0) > 0
+        any_food = (
+            inv.get("MEAT", 0) > 0 or inv.get("PLANTS", 0) > 0 or inv.get("FISH", 0) > 0
+        )
         self._btn_feed_all.setEnabled(any_food)
 
         sel_animal = next((a for a in animals if a["id"] == selected_animal_id), None)
@@ -96,7 +108,9 @@ class ActionPanel(QWidget):
             food_type = SPECIES_FOOD.get(sel_animal["species"], "")
             feed_one_ok = inv.get(food_type, 0) > 0
         self._btn_feed_one.setEnabled(feed_one_ok)
-        self._btn_heal.setEnabled(sel_animal is not None and not sel_animal.get("is_dead", False))
+        self._btn_heal.setEnabled(
+            sel_animal is not None and not sel_animal.get("is_dead", False)
+        )
         self._btn_clean.setEnabled(selected_enclosure_id is not None)
 
     def _emit_selected(self, action: str) -> None:
@@ -105,4 +119,6 @@ class ActionPanel(QWidget):
 
     def _emit_enclosure(self, action: str) -> None:
         if self._selected_enclosure_id:
-            self.action_triggered.emit(action, {"enclosure_id": self._selected_enclosure_id})
+            self.action_triggered.emit(
+                action, {"enclosure_id": self._selected_enclosure_id}
+            )

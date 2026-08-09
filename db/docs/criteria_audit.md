@@ -1,5 +1,11 @@
 # Assessment Criteria — Audit of the Database Module
 
+> **Authorship.** Drafted with AI assistance and completed under a
+> human-in-the-loop process: reviewed, executed and reconciled with
+> [`planning/db_planning/db_requirements.md`](../../planning/db_planning/db_requirements.md) before being
+> committed. The process record — including the ten defects that review
+> caught — is in [`ai_usage.md`](ai_usage.md).
+
 An honest mapping of every requirement in the project brief to the evidence
 in this module. Gaps are listed as gaps, not glossed over.
 
@@ -23,7 +29,7 @@ disappears.
 | Test coverage & edge cases | 5 | Covered |
 | Code documentation | 15 | Covered |
 | Design visualisation (Mermaid) | 10 | Covered |
-| Reflection & AI use | 5 | **Needs your own text** — see section 12 |
+| Reflection & AI use | 5 | Covered |
 
 Deduction-relevant requirements are audited separately in section 11.
 
@@ -38,8 +44,9 @@ with attributes, methods and relationships.
 |---|---|
 | 17 classes across 18 modules, one responsibility per file | `db/` |
 | 5 class diagrams (overview, interface, domain model, animal hierarchy, enums) | `docs/uml_class_diagram.md` |
+| Schema diagram with every type, key and constraint, plus the generated DDL | `docs/uml_db_schema.md` |
 | ER diagram with every column and type | `docs/uml_er_diagram.md` |
-| 5 sequence diagrams for the real interactions | `docs/uml_sequence_diagrams.md` |
+| 6 sequence diagrams for the real interactions | `docs/uml_sequence_diagrams.md` |
 | All four relationship kinds explicitly modelled and drawn | see below |
 
 **All four required relationship kinds are present and distinguished:**
@@ -90,8 +97,10 @@ def run_scenario(storage: AbstractPersistence) -> None: ...
 The abstraction is load-bearing rather than decorative: Python refuses to
 instantiate a subclass that misses a method, so a broken implementation
 fails at start-up instead of mid-session. Because SQLAlchemy sits
-underneath, the database engine itself is a configuration value —
-`"sqlite:///…"` becomes `"postgresql://…"` without touching another line.
+underneath, the database engine itself is largely a configuration value —
+`"sqlite:///…"` becomes `"postgresql://…"`, and the only other change needed is
+lifting the `execute_if(dialect="sqlite")` guard on the two views in
+`persistence/views.py` (see `architecture.md`, §2).
 
 *Verified:* a subclass omitting one method raises `TypeError` on
 instantiation; `issubclass(ZooDatabase, AbstractPersistence)`
@@ -126,16 +135,22 @@ the **file** — it still holds if someone edits a row in a SQLite browser.
 | 9 `@validates` hooks across 7 models | `models/*.py` |
 | Duplicate-identifier guard before a savegame is written | `_assert_unique_ids` |
 | Repeated-day guard before figures are replaced | `_assert_day_is_free` |
-| 15 `CHECK` constraints in the schema | `__table_args__` |
+| Missing-`day_id` guard before a transaction opens | `append_events` |
+| 18 `CHECK` constraints in the schema — 15 range/sign, 3 enum value sets | `__table_args__`, `SAEnum(create_constraint=True)` |
 | Enum coercion with clear errors on invalid input | `_coerce_type`, `_coerce_food_type`, `_coerce_time_of_day` |
 | Generated column makes `profit_loss` structurally unable to drift, and assigning it raises | `daily_stats.profit_loss` |
 | Private attributes (`_engine`, `_session_factory`, `_closed`) | `ZooDatabase` |
 | Transactions: a failed write changes nothing | `session.begin()` |
 | Foreign keys actually enforced | `PRAGMA foreign_keys=ON` |
 
-*Verified:* 13 rejection tests (out-of-range percentages, negative amounts,
-invalid enum values, unknown species, writing a computed column) all raise;
-boundary values `0` and `100` are accepted.
+*Verified by running it:* every rejection path above was exercised
+interactively — out-of-range percentages, negative amounts, invalid enum
+values, unknown species, writing the computed column, a duplicate `animal_id`,
+a repeated `day_id`, an event without a `day_id` — and each one raises. The
+boundary values `0` and `100` are accepted. The corresponding cases are
+described in [`test_plan.md`](test_plan.md); per the brief, tests are
+**described, not implemented**, so there is no test suite in the repository to
+point at.
 
 ---
 
@@ -149,7 +164,7 @@ boundary values `0` and `100` are accepted.
 | New storage implementation | 1 class implementing the interface | None. One line changes at the entry point. |
 | New event kind | 0 lines | The `details` JSON column absorbs it. |
 | New biome | 0 lines | `biome` is free text on purpose. |
-| Different database engine | 1 string | `"sqlite:///..."` → `"postgresql://..."` |
+| Different database engine | 1 string + the view guard | `"sqlite:///..."` → `"postgresql://..."`; the two SQL views are SQLite-guarded and must be re-registered for the new dialect |
 | New table | inherits `as_dict()` / `from_dict()` | Serialisation is written once in `Base`. |
 
 The layering rule is machine-checkable — both commands must print nothing:
@@ -178,17 +193,23 @@ grep -rnE "^\s*(from|import) db\.persistence" backend/ --include="*.py"
 | Load savegame | Implemented, polymorphic |
 | Manage slots | `list_saves`, `delete_save` |
 
-*Verified:* 120 assertions against real SQLite databases, all passing.
-`python -m db.demo` exercises every path end to end.
+*Verified by running it:* `python -m db.demo` exercises nine of the eleven
+contract operations end to end against a real SQLite database and exits `0`.
+`delete_save()` and `append_events()` are deliberately not in the walkthrough —
+deleting the savegame would undo the step before it, and a mid-day flush has no
+place in a linear script. Those two, the guard clauses and the empty-input and
+out-of-range cases were probed separately; the results are the defect table in
+[`ai_usage.md`](ai_usage.md), §4, and the described cases are SP-05, SP-06,
+SP-06b, SP-22 and SP-23 in [`test_plan.md`](test_plan.md).
 
 **Measured performance:**
 
 | Operation | Cost |
 |---|---|
-| `save_day()` with 50 messages | ~3 ms |
-| `get_stats(30)` | ~0.5 ms |
+| `save_day()` with 50 messages | ~3.4 ms |
+| `get_stats(30)` | ~0.4 ms |
 | `get_events(100)` | ~0.7 ms |
-| `get_weekly_summary()` | ~0.4 ms |
+| `get_weekly_summary()` | ~0.15 ms |
 
 At 20 ticks/s a tick has 50 ms. The database uses none of it — nothing is
 written per tick.
@@ -219,12 +240,16 @@ the function it covers, and consolidated in `test_plan.md` with IDs and
 categories.
 
 Every case is tagged: **H** happy path, **B** boundary, **E** error,
-**I** idempotence, **C** contract parity. Every function has at least one
-**B** or **E** case — boundary and error coverage is the explicit target, not
-a by-product.
+**I** idempotence, **C** contract parity. Boundary and error coverage is the
+explicit target rather than a by-product: every function that validates input
+or enforces a limit carries at least one **B** or **E** case. Ten functions —
+constructors, lifecycle methods and the context manager — take no value that
+can be out of range; their second axis is idempotence or contract instead, and
+they are named with the reasoning in `test_plan.md` §1.4.
 
 *Verified:* an AST-based audit over all 18 modules reports zero gaps in
-`Tests:`, `Args:` and `Returns:` sections.
+`Tests:`, `Args:` and `Returns:` sections; the B/E split was recounted from the
+`Cat` column of `test_plan.md` rather than assumed.
 
 ---
 
@@ -250,22 +275,51 @@ Every docstring follows the same structure: summary, explanation, `Args:`
 
 | Diagram | Count | File |
 |---|---|---|
-| Class diagrams | 5 | `docs/uml_class_diagram.md` |
+| Class diagrams (object model) | 5 | `docs/uml_class_diagram.md` |
+| Schema diagram + overview flowchart | 2 | `docs/uml_db_schema.md` |
 | ER diagrams | 3 | `docs/uml_er_diagram.md` |
-| Sequence diagrams | 5 | `docs/uml_sequence_diagrams.md` |
-| **Total** | **13** | |
+| Sequence diagrams | 6 | `docs/uml_sequence_diagrams.md` |
+| **Total** | **16** | |
 
 The brief asks for at least one comprehensive focus-specific class diagram
-(present) and allows sequence diagrams as an addition (five present, covering
-day-end write, chart read, save, load and startup).
+(present, and the focus is the database) and allows sequence diagrams as an
+addition — six are present, covering the day-end write, the refused repeat, the
+chart read, save, load and start-up.
+
+The three diagram documents answer different questions on purpose:
+`uml_class_diagram.md` the Python objects, `uml_db_schema.md` the physical
+tables with types, keys and constraints, `uml_er_diagram.md` the relationships
+between them.
+
+*Verified:* the count above is produced by parsing the ` ```mermaid ` blocks out
+of `docs/*.md`, not by counting them by hand.
 
 ---
 
 ## 10. Reflection & AI use (5 pts)
 
-**Status: needs your own text.** See section 12 — this one cannot be
-outsourced, and the criterion explicitly rewards understanding rather than
-volume of AI output.
+**Covered.** The criterion has two halves, and they live in two files on
+purpose.
+
+| Half of the criterion | Where |
+|---|---|
+| **AI use, verified with human-in-the-loop and reconciled with the planning** | [`ai_usage.md`](ai_usage.md) — who did what, what the review consisted of, and the ten defects it caught, each with the command or measurement that exposed it |
+| **Personal reflection on the learning process** | [`reflexion.md`](reflexion.md) — written by hand, without AI |
+
+The split is the argument. The brief rewards *"die Fähigkeit, den generierten
+Code zu verstehen, kritisch zu hinterfragen, anzupassen und den eigenen
+Lernprozess zu reflektieren"*. The first three are things that leave evidence:
+understanding shows in the defect table, questioning in the decisions that were
+reversed, adapting in the fixes — all of it checkable against the repository.
+The fourth leaves no evidence and cannot be delegated, so it is the one file in
+the module that carries no AI in it at all.
+
+`reflexion.md` names the same arc the process record does, from the other side:
+a first one-shot draft with a lot of errors, correcting it and testing every
+function, having the documentation generated and then reconciled against the
+implementation, criteria-driven checks, and a final pass over everything — with
+the conclusion that AI makes coarse mistakes and that working step by step
+beats correcting one large batch afterwards.
 
 ---
 
@@ -297,17 +351,16 @@ These cost points if missing, regardless of quality elsewhere.
 
 ---
 
-## 12. What is still yours to write
+## 12. Material behind the reflection
 
-The reflection (5 pts) has to be in your own words. Use
-`docs/reflection.md` as the scaffold — the factual parts are filled in;
-the judgement parts are marked `[YOUR TEXT]`.
+The personal reflection is written and lives in [`reflexion.md`](reflexion.md).
+This section lists the concrete episodes it draws on — all of them real, all of
+them verifiable in this repository — so a reader can check the account against
+the evidence rather than take it on trust.
 
 The criterion is explicit: *"decisive is not the extent of AI use, but the
 ability to understand the generated code, question it critically, adapt it
 and reflect on your own learning process."*
-
-Concrete material you can draw on, all of it real:
 
 * **A performance bug found by measuring, not guessing.** `get_stats(30)`
   eagerly loaded every message of every day — data charts never use. Measured
@@ -326,5 +379,17 @@ Concrete material you can draw on, all of it real:
 * **A trade-off consciously accepted.** `profit_loss` as a generated column
   cannot drift from `revenue - expenses`, at the cost of being `None` on
   objects that have not been through the database.
+* **A safeguard that existed only on paper.** Five documents stated that the
+  enum columns carried a `CHECK` constraint. Dumping the generated DDL showed a
+  bare `VARCHAR` — SQLAlchemy 2.0 does not create the constraint unless asked.
+  Nothing had ever failed, and nothing would have while the application was the
+  only writer. Found by reading the schema the code *produces* rather than the
+  code that produces it.
+* **A proof that did not prove anything.** The `grep` command offered
+  throughout the docs as machine-checkable evidence of the layering rule
+  reported five false violations on this platform. Fixed, then re-tested
+  against a deliberately planted violation to confirm it still catches a real
+  one — a check nobody runs twice is not a check.
 * **A limitation stated rather than hidden.** One save slot only; the fix
-  (composite primary key) is documented in `architecture.md`.
+  (composite primary key) is documented in `architecture.md`. So is the one
+  real gap in the repeated-day guard.

@@ -1,7 +1,20 @@
 # ER Diagram — Database Schema
 
-The seven tables as they exist in `data/zoo.sqlite`, with every column,
-type and key.
+> **Authorship.** Drafted with AI assistance and completed under a
+> human-in-the-loop process: reviewed, executed and reconciled with
+> [`planning/db_planning/db_requirements.md`](../../planning/db_planning/db_requirements.md) before being
+> committed. The process record — including the ten defects that review
+> caught — is in [`ai_usage.md`](ai_usage.md).
+
+The seven tables as they exist in `data/zoo.sqlite`, with every column, type and
+key — and, below that, the parts a bare schema listing does not tell you: how
+the cascades behave, what the views are for, which indexes exist and why, and
+how much data actually accumulates.
+
+> For the same schema drawn as a **UML class diagram**, with the constraint
+> expressions written out and the generated `CREATE TABLE` statements, see
+> [`uml_db_schema.md`](uml_db_schema.md). This document is the relational view;
+> that one is the physical view.
 
 ---
 
@@ -52,7 +65,7 @@ erDiagram
     }
 
     INVENTORY {
-        INTEGER zoo_id PK-FK "-> zoo_state.id"
+        INTEGER zoo_id PK, FK "-> zoo_state.id"
         VARCHAR food_type PK "MEAT|PLANTS|FISH|MEDICINE, CHECK"
         INTEGER amount "units in stock, CHECK >= 0"
     }

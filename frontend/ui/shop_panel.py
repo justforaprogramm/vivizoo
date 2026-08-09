@@ -14,14 +14,16 @@ Tests:
 
 from __future__ import annotations
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QLabel, QPushButton, QComboBox, QSpinBox,
-    QGroupBox, QHBoxLayout,
+    QWidget,
+    QVBoxLayout,
+    QComboBox,
+    QSpinBox,
+    QGroupBox,
+    QHBoxLayout,
 )
 from PyQt6.QtCore import pyqtSignal, Qt
 from frontend.ui.styled_widgets import styled_button, styled_label
-from frontend.core.constants import (
-    C_TEXT, C_TEXT_DIM, FOOD_PRICES, ANIMAL_PRICES,
-)
+from frontend.core.constants import FOOD_PRICES, ANIMAL_PRICES
 
 
 class ShopPanel(QWidget):
@@ -55,8 +57,14 @@ class ShopPanel(QWidget):
         food_group = QGroupBox("🍖 Futter kaufen")
         fl = QVBoxLayout(food_group)
         self._food_combo = QComboBox()
-        for ftype, label in [("MEAT","Fleisch"), ("PLANTS","Pflanzen"), ("FISH","Fisch")]:
-            self._food_combo.addItem(f"{label} ({ftype}) · {FOOD_PRICES[ftype]}€/Stk", ftype)
+        for ftype, label in [
+            ("MEAT", "Fleisch"),
+            ("PLANTS", "Pflanzen"),
+            ("FISH", "Fisch"),
+        ]:
+            self._food_combo.addItem(
+                f"{label} ({ftype}) · {FOOD_PRICES[ftype]}€/Stk", ftype
+            )
         fl.addWidget(self._food_combo)
         row = QHBoxLayout()
         self._food_spin = QSpinBox()
@@ -79,7 +87,11 @@ class ShopPanel(QWidget):
         animal_group = QGroupBox("🦁 Tiere kaufen")
         al = QVBoxLayout(animal_group)
         self._animal_combo = QComboBox()
-        for sp, label in [("lion","Löwe"), ("giraffe","Giraffe"), ("penguin","Pinguin")]:
+        for sp, label in [
+            ("lion", "Löwe"),
+            ("giraffe", "Giraffe"),
+            ("penguin", "Pinguin"),
+        ]:
             self._animal_combo.addItem(f"{label} · {ANIMAL_PRICES[sp]:,}€", sp)
         al.addWidget(self._animal_combo)
         btn_buy_animal = styled_button("Kaufen")
