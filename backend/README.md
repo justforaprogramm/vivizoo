@@ -5,7 +5,7 @@ The **backend** is the core logic ("the heartbeat") of the zoo simulation. It si
 ```
 ┌─────────────┐   API calls    ┌─────────────┐   domain→models   ┌─────────────┐
 │   Frontend  │ ─────────────▶ │   Backend   │ ───────────────▶ │  Database   │
-│   (PyQt)    │ ◀───────────── │   (this)    │ ◀─────────────── │   (db/)     │
+│  (PyQt6)    │ ◀───────────── │   (this)    │ ◀─────────────── │   (db/)     │
 └─────────────┘   snapshots    └─────────────┘   models          └─────────────┘
 ```
 
@@ -79,6 +79,12 @@ rows   = engine.get_stats(7)         # chart data (optional gateway)
 
 The `persistence` argument is optional: without it the backend runs purely in memory (handy for demos), with it, day summaries and chat messages are stored through `db.interface.AbstractPersistence`.
 
+**Tick rate.** The engine sleeps `1/(10 × speed)` seconds between ticks, so
+`set_speed(1.0)` produces **10 ticks per second** and `set_speed(2.0)` produces
+**20 ticks per second**. The database module's performance notes budget for a
+simulation running at 20 ticks/sec (→ 50 ms per tick), which corresponds to
+`engine.set_speed(2.0)`.
+
 ---
 
 ## Code quality (Pylint)
@@ -89,20 +95,6 @@ The Pylint configuration lives at the **project root** (`.pylintrc`) so that Pyl
 cd /workspaces/vivizoo            # project root
 pylint backend/                   # => 10.00/10
 ```
-
----
-
-## AI use & Reflection
-> **Note:** `deepseek flash` at plattform.deepseek.com and `gemini flash` at gemini.google.com were used
-
-This backend was developed with the support of an AI assistant. The AI was deliberately used for the following purposes:
-
-* **Writing code:** functions and classes were generated individually by the AI (for example the tick logic, the `Behaviour` strategies or the `ActionHandler` dispatcher), instead of producing whole modules at once.
-* **Ideation:** the AI served as a sparring partner for design questions (e.g. how the day/phase logic should be throttled, how visitor probability should reasonably depend on the weather, or how persistence should be cleanly hidden behind an adapter).
-* **Targeted refactoring:** hard-to-read or "not good" code was deliberately refactored — based on concrete AI suggestions the structure was rebuilt without changing the existing behaviour.
-* **Pylint cleanup:** the AI helped to fix Pylint warnings and adjust the configuration (`.pylintrc`) so that it supports the patterns the OOP design intends (encapsulation, slim strategy classes, the `db` import of the demo as a third party) without switching off the general quality rules.
-
-**Own responsibility / quality assurance:** the AI was used exclusively as a tool. Every single generated function was **logically checked myself** (the `Tests:` blocks in the docstrings are a result of this manual verification), so the AI-generated building blocks were only adopted after human review.
 
 ---
 
@@ -221,3 +213,6 @@ All design and API documentation for the backend lives in [`backend/docs/`](docs
 
 ### [`docs/test_plan.md`](docs/test_plan.md) — test descriptions (not implemented)
 **Why it is there:** the assignment requires that every function has **at least two described test cases, without implementing them**. This file consolidates the `Tests:` blocks found in each docstring into a single overview and states *where, what and with which boundary conditions* each test target should be tested (one production module → one test file in `backend/tests/`). It exists so the reader can review the test coverage in one place instead of reading every source file, and it connects to the concrete fixture/boundary guidance in the **Tests** section above.
+
+### [`docs/reflektion.md`](docs/reflektion.md) — AI use & reflection
+**Why it is there:** a recording of how the backend was developed with the support of an AI assistant — which parts were AI-generated, where the AI was used as a sparring partner and for targeted refactoring, and how the code was quality-checked by hand afterwards (the `Tests:` blocks). It mirrors the `reflection.md` of the database module.
