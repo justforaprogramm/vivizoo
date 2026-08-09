@@ -59,7 +59,7 @@ pip install -r db/requirements.txt          # SQLAlchemy
 pip install -r frontend/requirements.txt    # PyQt6
 ```
 
-> **Note:** the backend needs the same dependencies as the database (SQLAlchemy) because it builds on the persistence interface. For this reason there is **no separate** `backend/requirements.txt` — the required packages come from `db/requirements.txt` and `frontend/requirements.txt`.
+> **Note:** the backend needs the same dependencies as the database (SQLAlchemy) because it builds on the persistence interface. It therefore provides its own `backend/requirements.txt`, which is a one-line delegation to the database module's `db/requirements.txt` (`-r ../db/requirements.txt`). Installing `backend/requirements.txt` covers the backend completely.
 
 ### 2. Start the frontend (GUI app)
 

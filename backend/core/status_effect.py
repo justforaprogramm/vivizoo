@@ -9,6 +9,8 @@ persistence.
 Phase note: the effects exist in the domain from the start, but the healing
 mechanic that removes them is wired in phase 2 of the planning. The core
 loop already applies them and counts them down each tick.
+
+Part of the vivizoo project. Module owner: Benjamin (backend).
 """
 
 from __future__ import annotations

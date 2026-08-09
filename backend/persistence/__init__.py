@@ -13,6 +13,8 @@ Dependency rule (mirroring ``db/README.md``):
 
 Only :mod:`backend.persistence` may import from ``db``; the domain in
 ``backend.core`` stays ignorant of the database.
+
+Part of the vivizoo project. Module owner: Benjamin (backend).
 """
 
 from __future__ import annotations

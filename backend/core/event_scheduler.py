@@ -5,6 +5,8 @@
 to the message logger. In the current phase the event content is light -- an
 occasional weather change and a rare animal "illness" status effect -- which
 is enough to make the loop lively without unbalancing the core economy loop.
+
+Part of the vivizoo project. Module owner: Benjamin (backend).
 """
 
 from __future__ import annotations

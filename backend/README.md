@@ -43,7 +43,7 @@ Only `backend/persistence/db_gateway.py` may import from `db`. The core domain s
 The backend is standard library, but it imports the database module, which needs SQLAlchemy. From the repository root (inside the devcontainer):
 
 ```bash
-pip install -r db/requirements.txt   # SQLAlchemy (the backend builds on the db module)
+pip install -r backend/requirements.txt   # pulls in ../db/requirements.txt (SQLAlchemy)
 ```
 
 Run the self-contained demonstration of the core logic:
@@ -53,7 +53,10 @@ python -m backend.demo                  # in-memory only
 python -m backend.demo --with-db        # also writes a day to the database
 ```
 
-> **Note:** the backend provides **no separate** `requirements.txt`. It imports `db`, so install the database module's `db/requirements.txt` (= `SQLAlchemy>=2.0,<3.0`), which covers the backend as well.
+> **Note:** `backend/requirements.txt` is a single line that delegates to the
+> database module's `db/requirements.txt` (`-r ../db/requirements.txt` =
+> `SQLAlchemy>=2.0,<3.0`). So a plain `pip install -r backend/requirements.txt`
+> covers the whole backend — it imports `db`, and the same deps apply.
 
 ---
 

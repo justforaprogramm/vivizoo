@@ -12,6 +12,8 @@ itself so the behaviour can read the current hunger, time of day and so on.
 In the current phase the two shipped behaviours cover feeding and resting;
 new behaviours (social, mating, foraging) can be added by subclassing
 :class:`Behaviour` and returning an action tag.
+
+Part of the vivizoo project. Module owner: Benjamin (backend).
 """
 
 from __future__ import annotations

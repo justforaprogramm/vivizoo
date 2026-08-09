@@ -12,6 +12,8 @@ Actions implemented in the current phase:
 * ``buy_food``                  -- spend budget to add to the inventory.
 * ``buy_animal``                -- spend budget to add an animal.
 * ``clean``                     -- reset an enclosure's cleanliness.
+
+Part of the vivizoo project. Module owner: Benjamin (backend).
 """
 
 from __future__ import annotations
