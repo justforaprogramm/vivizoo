@@ -9,6 +9,8 @@ lifecycle.
 
 The planning document describes this as the *aggregate root* that the
 :class:`~backend.core.engine.SimulationEngine` drives forward.
+
+Part of the vivizoo project. Module owner: Benjamin (backend).
 """
 
 from __future__ import annotations
@@ -289,8 +291,10 @@ class Zoo:
                         "ERROR",
                         f"{animal.name} has died.",
                         entity_id=animal.animal_id,
-                        details={"cause": "starvation",
-                                 "days_without_food": animal.days_starved},
+                        details={
+                            "cause": "starvation",
+                            "days_without_food": animal.days_starved,
+                        },
                     )
                     continue
                 survivors.append(animal)

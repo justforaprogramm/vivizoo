@@ -1,50 +1,46 @@
-"""The simulation heartbeat -- :class:`SimulationEngine`.
+"""The simulation loop -- the "heartbeat" the frontend observes.
 
-The engine owns the tick loop and drives every entity forward. It keeps its
-own counters (tick number, time of day, day number) and uses the
-:class:`~backend.core.zoo.Zoo` aggregate to reach the domain objects. At the
-end of a day it invokes the persistence gateway so the finished day (and its
-messages) is written to the database -- exactly once per day.
+:class:`SimulationEngine` owns the tick loop. It advances the whole zoo one
+logical step at a time and exposes the read/write API the frontend uses:
+snapshots, entity hover data, the chat feed and player actions. It is the
+only object the frontend depends on (see ``backend/docs/api.md``).
 
-The engine is deliberately decoupled from the frontend: :meth:`tick` only
-computes logic; the frontend polls :meth:`get_game_state` to render.
+A real play session runs the tick loop on a background thread; the demo
+drives ``tick()`` manually, which keeps the module testable and dependency
+free at the core level.
 
-Single Responsibility Principle: the engine *orchestrates*; money moves go
-through :class:`~backend.core.finances.Finances`, animals through
-:class:`~backend.core.animal.Animal`, and so on.
+Part of the vivizoo project. Module owner: Benjamin (backend).
 """
 
 from __future__ import annotations
 
 import threading
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
+from db.interface.enums import TimeOfDay
 from backend.core.action_handler import ActionHandler
 from backend.core.message_logger import MessageLogger
-from db.interface.enums import TimeOfDay
 
 if TYPE_CHECKING:  # type checkers only, avoids a runtime cycle
     from backend.core.zoo import Zoo
     from backend.persistence.db_gateway import DbGateway
 
-# Simulation pacing: ticks per simulated day and the four phases.
+# One full simulation day spans these many ticks, split into four phases.
 TICKS_PER_DAY = 480
-_NIGHT_START = 360  # phase index at which the day is closed and persisted
+TICKS_PER_PHASE = TICKS_PER_DAY // 4
 
 
 class SimulationEngine:
-    """Runs the zoo forward one tick at a time.
+    """Advances the zoo and serves the frontend-facing read/write API.
 
     Args:
-        zoo (Zoo): The aggregate root to drive.
-        persistence (DbGateway | None): Optional day-end persistence; when
-            ``None`` the engine runs purely in memory.
-        logger (MessageLogger | None): Shared chat feed, defaults to the
+        zoo (Zoo): The zoo to simulate. Its lifecycle is owned by the caller.
+        persistence (DbGateway | None): Optional adapter that persists day
+            summaries and the chat log at each day boundary. Without it the
+            engine runs purely in memory.
+        logger (MessageLogger | None): The shared chat feed. Defaults to the
             singleton.
-
-    Attributes:
-        TICKS_PER_DAY (int): Simulated ticks per day.
     """
 
     def __init__(
@@ -53,36 +49,57 @@ class SimulationEngine:
         persistence: "DbGateway | None" = None,
         logger: MessageLogger | None = None,
     ) -> None:
-        """Create an engine suspended (paused) at tick zero.
+        """Create the engine bound to a zoo.
 
         Args:
-            zoo (Zoo): The zoo to drive.
-            persistence (DbGateway | None): The persistence gateway.
-            logger (MessageLogger | None): The chat feed.
+            zoo (Zoo): The zoo to simulate.
+            persistence (DbGateway | None): Optional persistence adapter.
+            logger (MessageLogger | None): Chat feed; defaults to the shared
+                singleton.
 
         Returns:
             None (constructor).
 
         Tests:
-            1. A new engine is paused with tick zero.
-            2. ``get_game_state()`` works immediately with an empty zoo.
+            1. A fresh engine starts at tick 0 and is not paused.
+            2. Without a persistence adapter the engine still ticks.
         """
         self._zoo = zoo
         self._persistence = persistence
-        self._logger = logger or MessageLogger.instance()
+        self._logger = logger if logger is not None else MessageLogger.instance()
         self._tick_count = 0
-        self._paused = True
-        self._running_thread: threading.Thread | None = None
-        self._stop_requested = False
+        self._paused = False
         self._speed = 1.0
-        self._actions = ActionHandler(zoo)
+        self._thread: threading.Thread | None = None
+        self._stop = False
+
+    def _phase_of(self, tick: int) -> TimeOfDay:
+        """Map a tick number to its time-of-day phase.
+
+        Args:
+            tick (int): The global tick count.
+
+        Returns:
+            TimeOfDay: The phase the tick falls into.
+
+        Tests:
+            1. Ticks 0 and 120 map to ``MORNING`` and ``NOON``.
+            2. The mapping wraps seamlessly across day boundaries.
+        """
+        slot = (tick % TICKS_PER_DAY) // TICKS_PER_PHASE
+        return [
+            TimeOfDay.MORNING,
+            TimeOfDay.NOON,
+            TimeOfDay.EVENING,
+            TimeOfDay.NIGHT,
+        ][slot]
 
     # ------------------------------------------------------------------
-    # Control API (called by the frontend)
+    # Lifecycle / threading
     # ------------------------------------------------------------------
 
     def start(self) -> None:
-        """Begin the internal tick timer (if not already running).
+        """Begin ticking on a background thread.
 
         Args:
             None.
@@ -91,36 +108,56 @@ class SimulationEngine:
             None.
 
         Tests:
-            1. After ``start()`` the engine is no longer paused.
+            1. Starting twice does not spawn a second thread.
+            2. A paused engine keeps ticking until paused again later.
         """
-        if self._running_thread is not None and self._running_thread.is_alive():
+        if self._thread is not None and self._thread.is_alive():
             return
-        self._paused = False
-        self._stop_requested = False
-        self._running_thread = threading.Thread(
-            target=self._run_loop, daemon=True
-        )
-        self._running_thread.start()
+        self._stop = False
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+
+    def _run(self) -> None:
+        """The background tick loop body.
+
+        Args:
+            None.
+
+        Returns:
+            None.
+        """
+        while not self._stop:
+            if not self._paused:
+                self.tick()
+            time.sleep(1.0 / (10.0 * self._speed))
 
     def pause(self) -> None:
-        """Freeze the tick counter.
+        """Freeze the tick loop.
 
         Args:
             None.
 
         Returns:
             None.
-
-        Tests:
-            1. Calling ``pause()`` sets the paused flag.
         """
         self._paused = True
 
-    def set_speed(self, multiplier: float) -> None:
-        """Change the simulation speed multiplier.
+    def resume(self) -> None:
+        """Unfreeze the tick loop.
 
         Args:
-            multiplier (float): 1.0 normal, 2.0 double speed; must be > 0.
+            None.
+
+        Returns:
+            None.
+        """
+        self._paused = False
+
+    def set_speed(self, multiplier: float) -> None:
+        """Change how many ticks per second the loop produces.
+
+        Args:
+            multiplier (float): A positive factor; ``1.0`` is normal.
 
         Returns:
             None.
@@ -129,28 +166,19 @@ class SimulationEngine:
             ValueError: If ``multiplier`` is not positive.
 
         Tests:
-            1. A positive multiplier is stored.
-            2. A zero or negative multiplier raises ``ValueError``.
+            1. Setting ``2.0`` is accepted.
+            2. Setting ``0`` or a negative value raises ``ValueError``.
         """
         if multiplier <= 0:
             raise ValueError(f"multiplier must be positive, got {multiplier}.")
         self._speed = multiplier
 
     # ------------------------------------------------------------------
-    # Core loop
+    # The tick
     # ------------------------------------------------------------------
 
     def tick(self) -> None:
-        """Compute exactly one logic step.
-
-        This is the heart of the planning's tick loop:
-
-        1. Advance the counter and the time of day.
-        2. Update animals (hunger down, age up, death check).
-        3. Spawn / move / despawn visitors (ticket income).
-        4. Run staff jobs and random events.
-        5. If it is night, close the day and persist it.
-        6. The frontend separately calls ``get_game_state()`` to render.
+        """Advance the whole simulation by exactly one structural step.
 
         Args:
             None.
@@ -159,9 +187,8 @@ class SimulationEngine:
             None.
 
         Tests:
-            1. After one tick the counter advanced by one.
-            2. Day-end persistence is invoked exactly when the night phase is
-               reached.
+            1. ``tick()`` increments the internal tick counter by one.
+            2. At a day boundary the engine closes and persists the day.
         """
         self._tick_count += 1
         phase = self._phase_of(self._tick_count)
@@ -181,41 +208,8 @@ class SimulationEngine:
         if self._tick_count % TICKS_PER_DAY == 0:
             self._close_day()
 
-    def _run_loop(self) -> None:
-        """Background loop that ticks at the configured speed.
-
-        Args:
-            None.
-
-        Returns:
-            None.
-        """
-        while not self._stop_requested:
-            if not self._paused:
-                self.tick()
-            time.sleep(self._speed * 0.05)  # 20 ticks/s at speed 1.0
-
-    def stop(self) -> None:
-        """Request the background thread to stop.
-
-        Args:
-            None.
-
-        Returns:
-            None.
-
-        Tests:
-            1. After ``stop()`` the stop flag is set.
-        """
-        self._stop_requested = True
-        self._paused = True
-
-    # ------------------------------------------------------------------
-    # Day lifecycle
-    # ------------------------------------------------------------------
-
     def _close_day(self) -> None:
-        """Close the day, persist it, and advance the calendar.
+        """Wrap up the finished day: capture stats and persist if possible.
 
         Args:
             None.
@@ -224,8 +218,8 @@ class SimulationEngine:
             None.
 
         Tests:
-            1. When a persistence gateway is present, it is invoked.
-            2. The zoo's day counter advances and its daily counters reset.
+            1. With a persistence adapter, a day summary is written.
+            2. Without one, the day still advances (in-memory only).
         """
         self._zoo.begin_new_day()
         if self._persistence is not None:
@@ -233,37 +227,30 @@ class SimulationEngine:
         self._zoo.current_day += 1
 
     # ------------------------------------------------------------------
-    # Read API (polled by the frontend)
+    # Read API for the frontend
     # ------------------------------------------------------------------
 
     def get_game_state(self) -> dict:
-        """Return the full current snapshot for the frontend to render.
+        """Return a full snapshot of the simulation for one render frame.
 
         Args:
             None.
 
         Returns:
-            dict: The ``game_state_data`` payload (system, finances,
-            inventory, map objects).
-
-        Tests:
-            1. Returning the zoo's state plus the current tick and phase.
+            dict: With ``system``, ``finances``, ``inventory``,
+            ``animals_on_map`` and ``visitors_on_map``.
         """
-        time_of_day = self._phase_of(self._tick_count).value
-        return self._zoo.to_game_state(self._tick_count, time_of_day)
+        phase = self._phase_of(self._tick_count).value
+        return self._zoo.to_game_state(self._tick_count, phase)
 
     def get_entity_info(self, entity_id: str) -> dict:
         """Return hover/tooltip data for one entity.
 
         Args:
-            entity_id (str): An animal or enclosure identifier.
+            entity_id (str): The entity's id (animal or enclosure).
 
         Returns:
-            dict: The hover payload, or an empty dict when not found.
-
-        Tests:
-            1. An existing animal yields its hover data.
-            2. An unknown id yields an empty dict.
+            dict: Tooltip data, or ``{}`` if unknown.
         """
         animal = self._zoo.find_animal(entity_id)
         if animal is not None:
@@ -280,66 +267,56 @@ class SimulationEngine:
         return {}
 
     def get_chat_messages(self) -> list[dict]:
-        """Return and clear the pending chat messages.
+        """Return any new chat messages and clear the buffer.
 
         Args:
             None.
 
         Returns:
-            list[dict]: New chat entries since the last call, drained.
-
-        Tests:
-            1. Returning pending entries resets the buffer.
+            list[dict]: New log entries in the order they were produced.
         """
-        return [
-            entry.to_dict() for entry in self._logger.drain()
-        ]
+        return [entry.to_dict() for entry in self._logger.drain()]
 
-    def execute_action(self, action_name: str, **kwargs: object) -> dict:
-        """Run a player action and return its structured result.
+    def execute_action(self, action_name: str, **kwargs: Any) -> dict:
+        """Run a named player action against the zoo.
 
         Args:
-            action_name (str): Action name, e.g. ``"feed_all"``.
-            **kwargs: Action arguments.
+            action_name (str): One of the supported action names.
+            **kwargs: Action-specific arguments.
 
         Returns:
             dict: The action result (``success``, ``message``,
             ``chat_entries``).
 
-        Tests:
-            1. A valid action returns a result dict.
+        Raises:
+            ValueError: If ``action_name`` is unknown.
         """
-        result = self._actions.execute_action(action_name, **kwargs)
-        return result.to_dict()
+        return ActionHandler(self._zoo).execute_action(action_name, **kwargs).to_dict()
 
     def get_stats(self, days_back: int = 30) -> list[dict]:
-        """Fetch recent daily summaries for charts via the gateway.
+        """Fetch recent daily summaries for charts.
 
         Args:
-            days_back (int): How many days to read.
+            days_back (int): How many days to read back.
 
         Returns:
-            list[dict]: Recent day summaries, oldest first; empty when no
-            persistence gateway is attached.
+            list[dict]: Daily summaries, oldest first; ``[]`` without a
+            persistence adapter.
         """
         if self._persistence is None:
             return []
-        return list(self._persistence.fetch_stats(days_back))
+        return self._persistence.fetch_stats(days_back)
 
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
-
-    @staticmethod
-    def _phase_of(tick: int) -> TimeOfDay:
-        """Compute the time-of-day phase from a tick number.
+    def __repr__(self) -> str:  # pragma: no cover - debugging helper
+        """Return a short readable representation.
 
         Args:
-            tick (int): Current tick.
+            None.
 
         Returns:
-            TimeOfDay: The active phase.
+            str: Named debug string.
         """
-        slot = (tick % TICKS_PER_DAY) // (TICKS_PER_DAY // 4)
-        return [TimeOfDay.MORNING, TimeOfDay.NOON,
-                TimeOfDay.EVENING, TimeOfDay.NIGHT][slot]
+        return (
+            f"<SimulationEngine tick={self._tick_count} "
+            f"phase={self._phase_of(self._tick_count).value}>"
+        )

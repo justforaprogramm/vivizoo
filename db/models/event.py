@@ -11,6 +11,13 @@ Write pattern:
     individual inserts.
 
 Part of the vivizoo project. Module owner: Jannes (database).
+
+Authorship:
+    Drafted with AI assistance and completed under a human-in-the-loop
+    process: every declaration in this file was read, executed and reconciled
+    with ``planning/db_planning/db_requirements.md`` before it was committed.
+    ``db/docs/ai_usage.md`` records what that review covered and the ten
+    defects it caught.
 """
 
 from __future__ import annotations
@@ -76,7 +83,18 @@ class Event(Base):
     )
     tick_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     type: Mapped[EventType] = mapped_column(
-        SAEnum(EventType, native_enum=False, length=16),
+        # create_constraint=True is not the default in SQLAlchemy 2.0: without
+        # it the column would be a plain VARCHAR and any string would be
+        # accepted by the file, leaving the Python validator as the only
+        # guard. The CHECK is what protects the database against edits that
+        # never went through this code.
+        SAEnum(
+            EventType,
+            native_enum=False,
+            length=16,
+            create_constraint=True,
+            name="ck_events_type",
+        ),
         nullable=False,
         doc="Severity; stored as VARCHAR with a CHECK constraint.",
     )

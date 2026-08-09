@@ -8,6 +8,8 @@ and already carries the fields that the phase-2 spoilage system needs
 
 The resource keys reuse :class:`db.interface.FoodType`, so the stock can be
 mapped to the ``inventory`` table without string juggling.
+
+Part of the vivizoo project. Module owner: Benjamin (backend).
 """
 
 from __future__ import annotations
@@ -106,9 +108,7 @@ class Inventory:
         Tests:
             1. A fresh inventory has zero for every food type.
         """
-        self._stock: dict[FoodType, int] = {
-            food_type: 0 for food_type in FoodType
-        }
+        self._stock: dict[FoodType, int] = {food_type: 0 for food_type in FoodType}
 
     def stock_of(self, food_type: FoodType) -> int:
         """Return the current amount of one resource.

@@ -5,6 +5,8 @@
 to the message logger. In the current phase the event content is light -- an
 occasional weather change and a rare animal "illness" status effect -- which
 is enough to make the loop lively without unbalancing the core economy loop.
+
+Part of the vivizoo project. Module owner: Benjamin (backend).
 """
 
 from __future__ import annotations
@@ -45,9 +47,7 @@ class EventScheduler:
             self.DEFAULT_CHANCE if event_chance is None else float(event_chance)
         )
         if not 0.0 <= self.event_chance <= 1.0:
-            raise ValueError(
-                f"event_chance must be 0.0..1.0, got {event_chance}."
-            )
+            raise ValueError(f"event_chance must be 0.0..1.0, got {event_chance}.")
 
     def check(self, zoo: "object", tick: int) -> None:
         """Roll for an event and apply it if triggered.
@@ -78,8 +78,12 @@ class EventScheduler:
             animal = self._random_living_animal(zoo)
             if animal is not None:
                 animal.apply_status_effect(
-                    StatusEffect(name="Stressed", tick_interval=5,
-                                 hp_drain=1.0, remaining_ticks=40)
+                    StatusEffect(
+                        name="Stressed",
+                        tick_interval=5,
+                        hp_drain=1.0,
+                        remaining_ticks=40,
+                    )
                 )
                 zoo.logger.log(
                     "WARNING",

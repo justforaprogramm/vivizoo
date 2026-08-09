@@ -6,6 +6,8 @@ so the day-end summary can be built from the same object that owns the money.
 
 Applied OOP principle: **encapsulation** -- the balance is private and only
 reached via :meth:`spend`, :meth:`earn` and the read-only :attr:`balance`.
+
+Part of the vivizoo project. Module owner: Benjamin (backend).
 """
 
 from __future__ import annotations

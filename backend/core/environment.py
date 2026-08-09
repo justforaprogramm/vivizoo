@@ -7,6 +7,8 @@ is fully wired so that altering the weather has an observable effect without
 any structural change.
 
 The possible weathers are the values in :attr:`EnvironmentFactor.WEATHERS`.
+
+Part of the vivizoo project. Module owner: Benjamin (backend).
 """
 
 from __future__ import annotations
@@ -27,9 +29,7 @@ class EnvironmentFactor:
 
     WEATHERS: tuple[str, ...] = ("sun", "rain", "cloudy")
 
-    def __init__(
-        self, weather: str | None = None, temperature: float = 20.0
-    ) -> None:
+    def __init__(self, weather: str | None = None, temperature: float = 20.0) -> None:
         """Create an environment factor with a starting weather.
 
         Args:
@@ -47,9 +47,7 @@ class EnvironmentFactor:
         if weather is None:
             weather = random.choice(self.WEATHERS)
         if weather not in self.WEATHERS:
-            raise ValueError(
-                f"Unknown weather {weather!r}. Valid: {self.WEATHERS}."
-            )
+            raise ValueError(f"Unknown weather {weather!r}. Valid: {self.WEATHERS}.")
         self.weather = weather
         self.temperature = temperature
 

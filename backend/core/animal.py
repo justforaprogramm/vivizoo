@@ -14,6 +14,8 @@ adapter can map backend animals to persisted rows losslessly.
 Encapsulation: the mutable simulation state (``_hunger``, ``_hp``, ...) is
 private and only reachable through documented properties and methods, so no
 caller can push a value outside 0--100.
+
+Part of the vivizoo project. Module owner: Benjamin (backend).
 """
 
 from __future__ import annotations
@@ -21,6 +23,7 @@ from __future__ import annotations
 import random
 from abc import ABC, abstractmethod
 
+from db.interface.enums import FoodType
 from backend.core.behaviour import (
     ACT_FEED,
     ACT_IDLE,
@@ -30,7 +33,6 @@ from backend.core.behaviour import (
     RestingBehaviour,
 )
 from backend.core.status_effect import StatusEffect
-from db.interface.enums import FoodType
 
 MAX_STAT = 100.0
 """Highest valid value for percentage stats (hunger, hp, welfare)."""
@@ -106,8 +108,7 @@ class Animal(ABC):
             raise ValueError(f"age_days must not be negative, got {age_days}.")
         # Construction-time range validation is strict; later incremental
         # operations clamp via _clamp instead.
-        for field, value in (("hp", hp), ("hunger", hunger),
-                             ("welfare", welfare)):
+        for field, value in (("hp", hp), ("hunger", hunger), ("welfare", welfare)):
             if not 0.0 <= float(value) <= MAX_STAT:
                 raise ValueError(
                     f"{field} must be between 0 and {MAX_STAT}, got {value}."
@@ -125,10 +126,14 @@ class Animal(ABC):
         self._days_starved = 0
         self._update_offset = random.randint(0, self.TICKS_PER_HUNGER_UPDATE - 1)
         # Compose behaviour strategies (strategy pattern).
-        self._behaviours: list[Behaviour] = behaviour is not None and [behaviour] or [
-            FeedingBehaviour(),
-            RestingBehaviour(),
-        ]
+        self._behaviours: list[Behaviour] = (
+            behaviour is not None
+            and [behaviour]
+            or [
+                FeedingBehaviour(),
+                RestingBehaviour(),
+            ]
+        )
         self._status_effects: list[StatusEffect] = []
 
     # ------------------------------------------------------------------

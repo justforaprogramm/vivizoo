@@ -12,6 +12,8 @@ Polymorphism: the caller calls :meth:`Employee.perform_job`, and each role
 carries out its own work against the zoo. In the current phase the staff
 perform their jobs as part of the engine's tick loop (or can be triggered
 directly through God mode).
+
+Part of the vivizoo project. Module owner: Benjamin (backend).
 """
 
 from __future__ import annotations
