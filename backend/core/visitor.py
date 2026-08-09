@@ -5,6 +5,8 @@ gate, wanders a little, and despawns after a fixed lifetime, paying its
 ticket on arrival. The map coordinates are updated every tick so the frontend
 gets smooth movement; the lifetime countdown and the ticket payment are the
 economic part.
+
+Part of the vivizoo project. Module owner: Benjamin (backend).
 """
 
 from __future__ import annotations

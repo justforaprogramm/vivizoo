@@ -1,17 +1,20 @@
 """
 EnclosureItem — visual representation of an enclosure on the zoo map.
 
-Rendered as a biome-coloured rectangle with dashed border and a label
-showing the enclosure name. Uses a callback instead of PyQt signals
-because QGraphicsRectItem is not a QObject in Qt6.
+Rendered as a biome-coloured rectangle with a dashed border and a label
+that shows the live occupancy and cleanliness the backend reports for that
+enclosure id. Uses a callback instead of PyQt signals because
+QGraphicsRectItem is not a QObject in Qt6.
 
 Tests:
-    - test_rect_position_matches_constructor: Create item at (50,60,200,150);
-      verify bounding rect matches.
-    - test_over_capacity_shows_red_border: Call update_state with count > capacity;
-      verify pen colour is red and width >= 2.
-    - test_click_triggers_callback: Set a callback; simulate mousePressEvent;
-      verify callback invoked with correct enclosure_id.
+    - test_rect_position_matches_constructor: Create an item at
+      (50, 60, 200, 150); verify the bounding rect matches.
+    - test_over_capacity_shows_red_border: Call update_state with a count
+      above the capacity; verify the pen is red and at least 2 px wide.
+    - test_click_triggers_callback: Register a callback; simulate
+      mousePressEvent; verify it is invoked with the enclosure id.
+
+Module owner: Erik (frontend).
 """
 
 from __future__ import annotations
@@ -20,6 +23,7 @@ from typing import Callable, Optional
 
 from PyQt6.QtWidgets import (
     QGraphicsRectItem,
+    QGraphicsSceneMouseEvent,
     QGraphicsTextItem,
     QGraphicsItem,
 )
@@ -28,28 +32,41 @@ from PyQt6.QtGui import QBrush, QPen, QColor, QFont, QLinearGradient
 
 from frontend.core.constants import (
     BIOME_COLORS,
+    BIOME_COLORS_LIGHT,
+    CLEAN_CRITICAL,
+    CLEAN_WARN,
     C_BORDER,
+    C_GOLD,
     C_RED,
     C_TEXT_DIM,
     Z_ENCLOSURES,
 )
 
 
+# Twelve fields instead of seven: id, name, biome, capacity, current count,
+# cleanliness, click callback, the four geometry values and the text label.
+# pylint: disable-next=too-many-instance-attributes
 class EnclosureItem(QGraphicsRectItem):
-    """Biome-coloured enclosure rectangle with label.
+    """Biome-coloured enclosure rectangle with a live status label.
 
-    QGraphicsRectItem is NOT a QObject in Qt6, so we cannot use
-    pyqtSignal. Instead, register a callback via set_click_callback().
+    QGraphicsRectItem is NOT a QObject in Qt6, so pyqtSignal cannot be used.
+    Register a callback via :meth:`set_click_callback` instead.
 
     Tests:
-        - test_rect_position_matches_constructor: Create at (50,60,200,150);
-          verify bounding rect matches (50,60,200,150).
+        - test_rect_position_matches_constructor: Create at
+          (50, 60, 200, 150); verify the bounding rect matches.
         - test_over_capacity_shows_solid_red_border: Call update_state with
-          count > capacity; verify pen colour is red and width >= 2.
+          a count above the capacity; verify the pen is red and solid.
     """
 
+    # Eight values describe an enclosure, pylint allows five parameters.
+    # Collapsing them into a dict would cost every type check; making them
+    # keyword-only costs nothing and stops anyone swapping w and h. Every
+    # caller names the arguments anyway.
+    # pylint: disable-next=too-many-arguments
     def __init__(
         self,
+        *,
         enclosure_id: str,
         name: str,
         biome: str,
@@ -66,10 +83,21 @@ class EnclosureItem(QGraphicsRectItem):
             enclosure_id: Unique id (e.g. "e_01").
             name: Display name (e.g. "Savanne 1").
             biome: "savanna" | "ice" | "water".
-            x, y: Top-left corner pixel coordinates.
-            w, h: Width and height in pixels.
+            x: Left edge in pixels.
+            y: Top edge in pixels.
+            w: Width in pixels.
+            h: Height in pixels.
             capacity: Maximum animal count.
             parent: Optional parent QGraphicsItem.
+
+        Returns:
+            None (constructor).
+
+        Tests:
+            - test_biome_colour_applied: Create with biome "ice"; verify the
+              brush uses the ice gradient colours.
+            - test_label_shows_name: Create with name "Savanne 1"; verify
+              the label text starts with that name.
         """
         super().__init__(x, y, w, h, parent)
         self._enclosure_id = enclosure_id
@@ -77,19 +105,20 @@ class EnclosureItem(QGraphicsRectItem):
         self._biome = biome
         self._capacity = capacity
         self._current_count = 0
+        self._cleanliness: float | None = None
         self._click_callback: Callable[[str], None] | None = None
+        self._x = x
+        self._y = y
+        self._w = w
+        self._h = h
 
         self.setZValue(Z_ENCLOSURES)
         self.setAcceptHoverEvents(False)
+        self.setToolTip(name)
 
-        # Semi-transparent biome fill
         fill = BIOME_COLORS.get(biome, "#222222")
-        # Tier 1: biome gradient fill (depth effect)
-        from frontend.core.constants import BIOME_COLORS_LIGHT
-
         light = BIOME_COLORS_LIGHT.get(biome, fill)
 
-        # Create gradient from lighter top to darker bottom
         gradient = QLinearGradient(x, y, x, y + h)
         gradient.setColorAt(0, QColor(light))
         gradient.setColorAt(0.15, QColor(fill))
@@ -99,79 +128,132 @@ class EnclosureItem(QGraphicsRectItem):
         self.setBrush(QBrush(gradient))
         self.setPen(QPen(QColor(C_BORDER), 1, Qt.PenStyle.DashLine))
 
-        # Label at the bottom centre of the rectangle
-        self._label = QGraphicsTextItem(f"{name} · Lv.1", self)
+        self._label = QGraphicsTextItem(name, self)
         self._label.setDefaultTextColor(QColor(C_TEXT_DIM))
-        font = QFont("Arial", 9)
-        self._label.setFont(font)
-        label_rect = self._label.boundingRect()
-        self._label.setPos(
-            x + (w - label_rect.width()) / 2,
-            y + h - label_rect.height() - 4,
-        )
+        self._label.setFont(QFont("Arial", 9))
         self._label.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+        self._centre_label()
 
     # ── Callback registration ───────────────────────────────────────────
 
     def set_click_callback(self, callback: Callable[[str], None]) -> None:
-        """Register a function to be called when the enclosure is clicked.
+        """Register a function called when the enclosure is clicked.
 
         Args:
-            callback: Function that receives the enclosure_id string.
+            callback: Receives the enclosure id string.
+
+        Returns:
+            None.
 
         Tests:
-            - test_callback_registered: Set a mock callback; simulate
-              mousePressEvent; verify callback called with enclosure_id.
+            - test_callback_registered: Register a mock; simulate
+              mousePressEvent; verify it is called with the enclosure id.
+            - test_callback_can_be_replaced: Register two callbacks in turn;
+              verify only the second one fires.
         """
         self._click_callback = callback
 
     # ── Public interface ──────────────────────────────────────────────────
 
-    def update_state(self, current_count: int) -> None:
-        """Update the enclosure's visual state based on population.
+    def update_state(
+        self,
+        current_count: int,
+        cleanliness: float | None = None,
+    ) -> None:
+        """Update the label and border from the backend's live values.
 
         Args:
-            current_count: Number of animals currently inside.
+            current_count: Animals currently inside, derived from the
+                backend's ``free_slots``.
+            cleanliness: The enclosure's cleanliness in 0–100, or None when
+                the backend does not report it.
+
+        Returns:
+            None.
 
         Tests:
-            - test_normal_count_shows_dashed_border: Call with count <= capacity;
-              verify pen style is DashLine.
-            - test_over_capacity_shows_solid_red_border: Call with
-              count > capacity; verify pen colour is red and style is SolidLine.
+            - test_normal_count_shows_dashed_border: Call with a count at or
+              below capacity and full cleanliness; verify the pen style is
+              DashLine.
+            - test_over_capacity_shows_solid_red_border: Call with a count
+              above capacity; verify the pen is red and solid.
+            - test_dirty_enclosure_turns_gold: Call with cleanliness=45;
+              verify the pen colour is the gold warning colour.
         """
         self._current_count = current_count
+        self._cleanliness = cleanliness
 
         if current_count > self._capacity:
-            pen = QPen(QColor(C_RED), 3, Qt.PenStyle.SolidLine)
-            self.setPen(pen)
+            self.setPen(QPen(QColor(C_RED), 3, Qt.PenStyle.SolidLine))
+        elif cleanliness is not None and cleanliness < CLEAN_CRITICAL:
+            self.setPen(QPen(QColor(C_RED), 2, Qt.PenStyle.DashLine))
+        elif cleanliness is not None and cleanliness < CLEAN_WARN:
+            self.setPen(QPen(QColor(C_GOLD), 2, Qt.PenStyle.DashLine))
         else:
-            pen = QPen(QColor(C_BORDER), 1, Qt.PenStyle.DashLine)
-            self.setPen(pen)
+            self.setPen(QPen(QColor(C_BORDER), 1, Qt.PenStyle.DashLine))
 
-        # Update label (level shown as 1 for Phase 1)
-        self._label.setPlainText(
-            f"{self._name} · Lv.1 · {current_count}/{self._capacity}"
-        )
+        text = f"{self._name} · {current_count}/{self._capacity}"
+        if cleanliness is not None:
+            text += f" · 🧹 {cleanliness:.0f}%"
+        self._label.setPlainText(text)
+        self._centre_label()
+        self.setToolTip(text)
 
     @property
     def enclosure_id(self) -> str:
         """Return the enclosure identifier.
 
+        Returns:
+            str: The id passed to the constructor, e.g. "e_01".
+
         Tests:
-            - test_returns_constructor_id: Create with id "e_42"; verify
-              enclosure_id property returns "e_42".
+            - test_returns_constructor_id: Create with id "e_42"; verify the
+              property returns "e_42".
+            - test_id_is_read_only: Verify the property has no setter.
         """
         return self._enclosure_id
 
-    # ── Mouse events ──────────────────────────────────────────────────────
+    # ── Internal helpers ──────────────────────────────────────────────────
 
-    def mousePressEvent(self, event: object) -> None:
-        """Invoke the click callback if registered.
+    def _centre_label(self) -> None:
+        """Re-centre the label at the bottom edge after a text change.
+
+        Returns:
+            None.
 
         Tests:
-            - test_click_triggers_callback: Set a mock callback, simulate
-              mousePressEvent; verify callback called with enclosure_id.
+            - test_label_centred_horizontally: Call it; verify the label midpoint
+              matches the rectangle midpoint.
+            - test_recentres_after_text_change: Set a longer text, call it; verify
+              the label is centred again.
+        """
+        rect = self._label.boundingRect()
+        self._label.setPos(
+            self._x + (self._w - rect.width()) / 2,
+            self._y + self._h - rect.height() - 4,
+        )
+
+    # ── Mouse events ──────────────────────────────────────────────────────
+
+    def mousePressEvent(self, event: QGraphicsSceneMouseEvent | None) -> None:
+        """Invoke the click callback if one is registered.
+
+        Args:
+            event: The Qt mouse press event, accepted so it stops here.
+
+        Returns:
+            None.
+
+        The event is accepted so a click that already selected an animal
+        standing on this enclosure does not continue down the item stack.
+
+        Tests:
+            - test_click_triggers_callback: Register a mock; simulate
+              mousePressEvent; verify it is called with the enclosure id.
+            - test_click_without_callback_is_safe: Simulate a click with no
+              callback registered; verify no exception is raised.
         """
         if self._click_callback is not None:
             self._click_callback(self._enclosure_id)
-        super().mousePressEvent(event)
+        if event is not None:
+            event.accept()

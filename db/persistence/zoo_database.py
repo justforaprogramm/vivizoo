@@ -86,9 +86,7 @@ class ZooDatabase(AbstractPersistence):
 
     DEFAULT_SLOT = 1
 
-    def __init__(
-        self, database: str | Path | None = None, echo: bool = False
-    ) -> None:
+    def __init__(self, database: str | Path | None = None, echo: bool = False) -> None:
         """Open the database and create the schema if it does not exist yet.
 
         Tables and views are created on construction, so a fresh checkout
@@ -363,9 +361,7 @@ class ZooDatabase(AbstractPersistence):
             ).all()
         return list(reversed(rows))
 
-    def get_events(
-        self, day_id: int | None = None, limit: int = 100
-    ) -> list[Event]:
+    def get_events(self, day_id: int | None = None, limit: int = 100) -> list[Event]:
         """Read log messages, optionally restricted to a single day.
 
         Args:
@@ -612,16 +608,13 @@ class ZooDatabase(AbstractPersistence):
                carries ``id == 1`` plus a non-empty ``created_at``.
             2. On an untouched database the result is ``[]``.
         """
-        query = (
-            select(
-                ZooState.id,
-                ZooState.game_day,
-                ZooState.money,
-                ZooState.reputation,
-                ZooState.created_at,
-            )
-            .order_by(ZooState.created_at.desc())
-        )
+        query = select(
+            ZooState.id,
+            ZooState.game_day,
+            ZooState.money,
+            ZooState.reputation,
+            ZooState.created_at,
+        ).order_by(ZooState.created_at.desc())
         with self._session_factory() as session:
             return [
                 {
@@ -726,5 +719,7 @@ class ZooDatabase(AbstractPersistence):
             2. On an empty database ``count_rows(Event)`` returns ``0``.
         """
         with self._session_factory() as session:
-            count = select(func.count()).select_from(model)  # pylint: disable=not-callable
+            count = select(func.count()).select_from(
+                model
+            )  # pylint: disable=not-callable
             return int(session.scalar(count) or 0)

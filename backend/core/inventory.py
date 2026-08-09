@@ -8,6 +8,8 @@ and already carries the fields that the phase-2 spoilage system needs
 
 The resource keys reuse :class:`db.interface.FoodType`, so the stock can be
 mapped to the ``inventory`` table without string juggling.
+
+Part of the vivizoo project. Module owner: Benjamin (backend).
 """
 
 from __future__ import annotations

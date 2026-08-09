@@ -154,9 +154,7 @@ def _apply_sqlite_pragmas(dbapi_connection: Any, _connection_record: Any) -> Non
         cursor.close()
 
 
-def create_db_engine(
-    database: str | Path | None = None, echo: bool = False
-) -> Engine:
+def create_db_engine(database: str | Path | None = None, echo: bool = False) -> Engine:
     """Create a fully configured SQLAlchemy engine.
 
     This is the only place in the project that calls

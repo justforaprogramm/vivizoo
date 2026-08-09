@@ -274,8 +274,10 @@ def run_scenario(storage: AbstractPersistence) -> None:
 
     # --- 2. Read days back --------------------------------------------
     print("\n[2] get_stats(7) -- data for charts:")
-    print(f"    {'day':>4} {'visitors':>9} {'revenue':>9} {'expenses':>9} "
-          f"{'profit':>9}  profitable")
+    print(
+        f"    {'day':>4} {'visitors':>9} {'revenue':>9} {'expenses':>9} "
+        f"{'profit':>9}  profitable"
+    )
     for day in storage.get_stats(7):
         print(
             f"    {day.day_id:>4} {day.total_visitors:>9} {day.revenue:>9.2f} "
@@ -287,8 +289,10 @@ def run_scenario(storage: AbstractPersistence) -> None:
     print("\n[3] get_events(day_id=2) -- the message feed of day 2:")
     for entry in storage.get_events(day_id=2):
         marker = "!" if entry.is_problem() else " "
-        print(f"  {marker} [{entry.type.value:<7}] tick {entry.tick_count:>5}: "
-              f"{entry.text}")
+        print(
+            f"  {marker} [{entry.type.value:<7}] tick {entry.tick_count:>5}: "
+            f"{entry.text}"
+        )
         if entry.details:
             print(f"      details: {entry.details}")
 
@@ -307,17 +311,21 @@ def run_scenario(storage: AbstractPersistence) -> None:
 
     loaded = storage.load_game(slot)
     assert loaded is not None, "savegame must be loadable"
-    print(f"    load_game({slot}) -> day {loaded.game_day}, "
-          f"money {loaded.money:.2f}, {loaded.total_animals()} animals")
+    print(
+        f"    load_game({slot}) -> day {loaded.game_day}, "
+        f"money {loaded.money:.2f}, {loaded.total_animals()} animals"
+    )
 
     print("\n    Animals return as their species subclass:")
     for enclosure in loaded.enclosures:
-        print(f"      {enclosure.name} ({enclosure.biome}), "
-              f"{enclosure.free_slots()} slots free:")
+        print(
+            f"      {enclosure.name} ({enclosure.biome}), "
+            f"{enclosure.free_slots()} slots free:"
+        )
         for animal in enclosure.animals:
-            effects = ", ".join(
-                effect.effect_name for effect in animal.status_effects
-            ) or "-"
+            effects = (
+                ", ".join(effect.effect_name for effect in animal.status_effects) or "-"
+            )
             print(
                 f"        {animal.name:<14} class={type(animal).__name__:<8} "
                 f"food={animal.PREFERRED_FOOD.value:<7} "
@@ -327,8 +335,10 @@ def run_scenario(storage: AbstractPersistence) -> None:
 
     print("\n[6] list_saves():")
     for entry in storage.list_saves():
-        print(f"    slot {entry['id']}: day {entry['game_day']}, "
-              f"money {entry['money']:.2f}, saved {entry['created_at']}")
+        print(
+            f"    slot {entry['id']}: day {entry['game_day']}, "
+            f"money {entry['money']:.2f}, saved {entry['created_at']}"
+        )
 
 
 def main() -> int:

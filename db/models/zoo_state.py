@@ -252,7 +252,7 @@ def _next_free_id(used: set[str], prefix: str) -> str:
     for identifier in used:
         if not identifier.startswith(prefix):
             continue
-        suffix = identifier[len(prefix):]
+        suffix = identifier[len(prefix) :]
         if suffix.isdigit():
             highest = max(highest, int(suffix))
     return f"{prefix}{highest + 1:02d}"

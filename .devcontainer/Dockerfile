@@ -20,6 +20,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxcb-render-util0 \
     libxcb-shape0 \
     libxcb-xinerama0 \
+    fonts-noto-color-emoji \
+    fonts-noto-core \
     && rm -rf /var/lib/apt/lists/*
 
 # SSH Setup
@@ -37,4 +39,4 @@ RUN echo "source /opt/venv/bin/activate" >> /etc/bash.bashrc && \
     echo "source /opt/venv/bin/activate" >> /home/vscode/.bashrc
 
 # Install Python packages
-RUN pip install --no-cache-dir pandas sqlalchemy "PyQt6>=6.5.0"
+RUN pip install --no-cache-dir pandas sqlalchemy pylint "PyQt6>=6.5.0"

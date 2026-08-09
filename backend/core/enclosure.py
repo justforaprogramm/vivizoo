@@ -8,6 +8,8 @@ the biome, and performs its own upkeep within the tick loop.
 The field names (``enclosure_id``, ``biome``, ``capacity``, ``cleanliness``)
 mirror the ``enclosures`` table of the database module, so a savegame adapter
 can map between them without transforms.
+
+Part of the vivizoo project. Module owner: Benjamin (backend).
 """
 
 from __future__ import annotations

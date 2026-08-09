@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import sys
 
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from frontend.core.constants import (
     C_BG_DEEP,
@@ -36,8 +36,6 @@ from frontend.core.constants import (
     C_ACCENT,
     C_ACCENT2,
     C_ACCENT_GLOW,
-    C_RED,
-    C_RED_GLOW,
     C_TEXT,
     C_TEXT_DIM,
     C_BORDER,
@@ -51,9 +49,18 @@ from frontend.core.main_window import ZooMainWindow
 def _get_qss() -> str:
     """Return the full QSS Dark Theme stylesheet.
 
-    Covers: QMainWindow, QToolBar, QStatusBar, QPushButton, QComboBox,
-    QSpinBox, QSlider, QProgressBar, QGroupBox, QTabWidget/QTabBar,
-    QTextEdit, QScrollBar, QMenuBar/QMenu, QCheckBox, QLabel.
+    Covers every widget class the frontend actually instantiates and nothing
+    else: QMainWindow, QPushButton, QComboBox, QSpinBox, QLineEdit,
+    QProgressBar, QGroupBox, QTabWidget/QTabBar, QTextEdit,
+    QTableWidget/QHeaderView, QScrollBar, QMenuBar/QMenu, QDialog, QToolTip
+    and QLabel.
+
+    Deliberately absent: the top and bottom bars are custom QFrames with
+    their own object-name rules, so no QToolBar/QStatusBar block is needed,
+    and the button variants are applied inline by ``ui/styled_widgets.py``
+    rather than through ``[accent="true"]`` property selectors — a global
+    rule that nothing sets the property for is a rule that silently does
+    nothing.
 
     Returns:
         A str of CSS rules for the PyQt6 application.
@@ -70,18 +77,6 @@ def _get_qss() -> str:
         background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
             stop:0 {C_BG_DEEP}, stop:0.5 {C_BG_MID}, stop:1 {C_BG_DEEP});
         color: {C_TEXT};
-    }}
-    QToolBar {{
-        background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-            stop:0 {C_BG_PANEL2}, stop:0.3 {C_BG_PANEL}, stop:1 {C_BG_PANEL});
-        border-bottom: 1px solid {C_BORDER};
-        spacing: 4px;
-        padding: 4px;
-    }}
-    QStatusBar {{
-        background: {C_BG_PANEL};
-        color: {C_TEXT_DIM};
-        border-top: 1px solid {C_BORDER};
     }}
 
     /* ── Buttons (Tier 1 — glow + gradient) ──────────── */
@@ -109,30 +104,6 @@ def _get_qss() -> str:
         color: #444;
         background: #111;
         border: 1px solid #1a1a1a;
-    }}
-    QPushButton[accent="true"] {{
-        background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-            stop:0 {C_ACCENT_GLOW}, stop:1 {C_ACCENT});
-        color: #fff;
-        border: 1px solid {C_ACCENT_GLOW};
-        font-weight: bold;
-    }}
-    QPushButton[accent="true"]:hover {{
-        background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-            stop:0 {C_ACCENT}, stop:1 {C_ACCENT2});
-        border: 1px solid #fff;
-    }}
-    QPushButton[danger="true"] {{
-        background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-            stop:0 {C_RED_GLOW}, stop:1 {C_RED});
-        color: #fff;
-        border: 1px solid {C_RED_GLOW};
-        font-weight: bold;
-    }}
-    QPushButton[danger="true"]:hover {{
-        background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-            stop:0 {C_RED}, stop:1 #b22222);
-        border: 1px solid #fff;
     }}
 
     /* ── Inputs (Tier 4 — visible dropdowns + hover) ──── */
@@ -183,18 +154,6 @@ def _get_qss() -> str:
     }}
     QSpinBox:hover {{
         border: 1px solid {C_ACCENT_GLOW};
-    }}
-    QSlider::groove:horizontal {{
-        background: {C_BORDER};
-        height: 4px;
-        border-radius: 2px;
-    }}
-    QSlider::handle:horizontal {{
-        background: {C_ACCENT};
-        width: 12px;
-        height: 12px;
-        margin: -4px 0;
-        border-radius: 6px;
     }}
 
     /* ── Progress Bars ────────────────────────────────── */
@@ -292,10 +251,56 @@ def _get_qss() -> str:
         background: {C_ACCENT};
     }}
 
-    /* ── Misc ─────────────────────────────────────────── */
-    QCheckBox {{
+    /* ── Line Edit (animal name input) ────────────────── */
+    QLineEdit {{
+        background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+            stop:0 {C_BG_CARD2}, stop:1 {C_BG_CARD});
+        border: 1px solid {C_BORDER};
+        color: {C_TEXT};
+        border-radius: 4px;
+        padding: 6px 8px;
+        selection-background-color: {C_ACCENT};
+    }}
+    QLineEdit:focus {{
+        border: 1px solid {C_ACCENT_GLOW};
+    }}
+
+    /* ── Tables (statistics + animal roster) ──────────── */
+    QTableWidget {{
+        background: {C_BG_CARD};
+        color: {C_TEXT};
+        border: 1px solid {C_BORDER};
+        border-radius: 4px;
+        gridline-color: {C_BORDER};
+    }}
+    QTableWidget::item:selected {{
+        background: {C_ACCENT2};
+        color: #ffffff;
+    }}
+    QHeaderView::section {{
+        background: {C_BG_PANEL};
+        color: {C_TEXT_DIM};
+        border: none;
+        border-bottom: 1px solid {C_BORDER};
+        padding: 4px;
+        font-weight: bold;
+    }}
+
+    /* ── Dialogs (help / shortcuts) ───────────────────── */
+    QDialog {{
+        background: {C_BG_PANEL};
         color: {C_TEXT};
     }}
+
+    /* ── Tooltips ─────────────────────────────────────── */
+    QToolTip {{
+        background: {C_BG_PANEL};
+        color: {C_TEXT};
+        border: 1px solid {C_BORDER};
+        padding: 4px 6px;
+    }}
+
+    /* ── Labels ───────────────────────────────────────── */
     QLabel {{
         color: {C_TEXT};
         background: transparent;
@@ -306,22 +311,68 @@ def _get_qss() -> str:
 # ── Engine Factory ────────────────────────────────────────────────────────
 
 
-def _create_demo_engine() -> object | None:
-    """Try to import and create a demo SimulationEngine with a pre-seeded zoo.
+def _create_persistence() -> object | None:
+    """Try to build the optional day-end persistence gateway.
 
-    Falls back to None silently if the backend module is not importable
-    or if construction fails — the frontend then runs in empty mode.
+    The backend only records day summaries — and therefore only answers
+    ``get_stats()`` — when a gateway is attached. The gateway is optional:
+    when the database module or its driver is unavailable the simulation
+    still runs, the statistics tab simply stays empty.
 
     Returns:
-        A SimulationEngine instance, or None.
+        object | None: A DbGateway backed by an in-memory database, or
+        None when persistence cannot be set up.
 
     Tests:
-        - test_returns_none_when_backend_unavailable: Run without
-          sqlalchemy installed; verify None returned gracefully.
-        - test_returns_engine_on_success: Run in environment with full
-          backend dependencies; verify a non-None engine returned.
+        - test_returns_gateway_when_db_available: Run with sqlalchemy
+          installed; verify a non-None gateway is returned.
+        - test_returns_none_without_db: Simulate an ImportError; verify
+          None is returned instead of raising.
     """
     try:
+        # Local rather than at module level: the frontend must start without a
+        # backend and without a database (--no-engine, and tests/test_layering.py
+        # asserts that main.py is the only place that knows these packages at
+        # all). A module-level import would tie every start to them — exactly
+        # what the layering is meant to prevent.
+        # pylint: disable=import-outside-toplevel
+        from backend.persistence.db_gateway import DbGateway
+        from db import ZooDatabase
+
+        return DbGateway(ZooDatabase(":memory:"))
+    except Exception:  # pylint: disable=broad-exception-caught
+        return None
+
+
+def _create_demo_engine() -> tuple[object | None, str]:
+    """Import the backend and build a demo SimulationEngine.
+
+    Creates three enclosures whose ids and capacities match
+    ``constants.ENCLOSURE_DEFS`` plus four starter animals, and attaches
+    the optional persistence gateway so the statistics tab has data.
+
+    Returns the failure reason instead of only logging it: whoever starts
+    the app by double-clicking never sees stderr, and an empty window with
+    no explanation is the worst possible first impression.
+
+    Returns:
+        tuple[object | None, str]: The engine and an empty string on
+        success; ``(None, reason)`` when the backend could not be loaded.
+
+    Tests:
+        - test_returns_none_when_backend_unavailable: Run without the
+          backend package importable; verify (None, reason) comes back and
+          the reason is not empty.
+        - test_enclosure_ids_match_frontend_defs: Build the engine; verify
+          get_entity_info("e_01") resolves to the savanna enclosure.
+        - test_success_has_no_message: Build the engine normally; verify the
+          second element is an empty string.
+    """
+    try:
+        # Local rather than at module level — see _create_persistence: if the
+        # backend is missing, the except branch catches it and the interface
+        # still starts, with an explanation in the error dialog.
+        # pylint: disable=import-outside-toplevel
         from backend.core.zoo import Zoo
         from backend.core.engine import SimulationEngine
         from backend.core.message_logger import MessageLogger
@@ -330,20 +381,33 @@ def _create_demo_engine() -> object | None:
         logger = MessageLogger.instance()
         zoo = Zoo(name="vivizoo Demo", logger=logger)
 
-        # Create enclosures matching the hardcoded frontend positions
+        # Order matters: the backend numbers enclosures e_01, e_02, e_03 in
+        # creation order, which is what ENCLOSURE_DEFS expects.
         savanna = zoo.add_enclosure("Savanne 1", "savanna", capacity=5)
         ice = zoo.add_enclosure("Eiswelt 1", "ice", capacity=4)
         water = zoo.add_enclosure("Aquarium 1", "water", capacity=3)
 
-        # Add starter animals
         zoo.add_animal("lion", "Simba", savanna)
         zoo.add_animal("giraffe", "Melman", savanna)
         zoo.add_animal("penguin", "Pingu", ice)
         zoo.add_animal("penguin", "Kowalski", water)
 
-        return SimulationEngine(zoo, persistence=None, logger=logger)
-    except Exception:  # pylint: disable=broad-exception-caught
-        return None
+        engine = SimulationEngine(
+            zoo,
+            persistence=_create_persistence(),  # type: ignore[arg-type]
+            logger=logger,
+        )
+        return engine, ""
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        # Do not fail silently: an empty window with no explanation is the
+        # worst possible outcome for whoever runs the app for the first time.
+        reason = (
+            f"Das Backend konnte nicht geladen werden:\n\n{exc!r}\n\n"
+            "Die Oberfläche startet ohne Simulation — die Karte bleibt leer.\n"
+            "Prüfe die Abhängigkeiten:  pip install -r db/requirements.txt"
+        )
+        print(f"[vivizoo] {reason}", file=sys.stderr)
+        return None, reason
 
 
 # ── Launch ─────────────────────────────────────────────────────────────────
@@ -367,17 +431,26 @@ def launch_frontend(engine: object | None = None) -> int:
         - test_launch_with_no_engine_flag: Simulate --no-engine flag;
           verify FrontendController receives None engine and degrades
           gracefully.
+        - test_failure_opens_a_dialog: Make the engine factory fail; verify
+          a QMessageBox is shown before the window appears.
     """
     app = QApplication(sys.argv)
     app.setStyleSheet(_get_qss())
 
-    # Auto-create engine if none provided
-    if engine is None and "--no-engine" not in sys.argv:
-        engine = _create_demo_engine()
+    standalone = "--no-engine" in sys.argv
+    reason = ""
+    if engine is None and not standalone:
+        engine, reason = _create_demo_engine()
 
     controller = FrontendController(engine)
     window = ZooMainWindow(controller)
     window.show()
+
+    if reason:
+        # A dialog, not only stderr: started from a file manager or a
+        # desktop shortcut, stderr goes nowhere and the user is left with an
+        # empty map and no idea why.
+        QMessageBox.warning(window, "vivizoo — Backend nicht verfügbar", reason)
 
     return app.exec()
 

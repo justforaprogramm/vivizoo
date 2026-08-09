@@ -21,6 +21,8 @@ These modules depend on each other only in one direction: the small helpers
 (``behaviour``, ``status_effect``, ``finances``, ``inventory``,
 ``message_logger``) know nothing about the engine; the aggregates
 (``zoo``, ``engine``) compose them. See ``docs/class_diagram.md``.
+
+Part of the vivizoo project. Module owner: Benjamin (backend).
 """
 
 from __future__ import annotations

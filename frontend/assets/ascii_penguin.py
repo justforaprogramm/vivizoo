@@ -1,6 +1,8 @@
 """
 ASCII Art Penguin — dedicated asset file.
 Used as the penguin sprite pixmap source in the frontend.
+
+Module owner: Erik (frontend).
 """
 
 ASCII_PENGUIN = r"""

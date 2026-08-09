@@ -49,9 +49,7 @@ class InventoryItem(Base):
     """
 
     __tablename__ = "inventory"
-    __table_args__ = (
-        CheckConstraint("amount >= 0", name="ck_inventory_amount"),
-    )
+    __table_args__ = (CheckConstraint("amount >= 0", name="ck_inventory_amount"),)
 
     zoo_id: Mapped[int] = mapped_column(
         ForeignKey("zoo_state.id", ondelete="CASCADE"),

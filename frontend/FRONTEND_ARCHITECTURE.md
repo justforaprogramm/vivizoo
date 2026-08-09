@@ -1,484 +1,347 @@
-# 🎨 Zoo Digital Twin — Frontend-Architektur & Implementierungsdokumentation
+# 🎨 Frontend Architecture — vivizoo
 
-> **Stand:** 6. August 2026 | **Datei:** `frontend/main_window.py` (+ `assets/`)  
-> **Framework:** PyQt6 | **Map:** QGraphicsScene/QGraphicsView  
-> **Layout:** Fixed 1400×900 Grid | **Theme:** Premium Dark Forest
+> **Module:** Frontend · **Module owner:** Erik
+> **As of:** 9 August 2026 · **Framework:** PyQt6
+> **Map:** QGraphicsScene/QGraphicsView · **Window:** 1400×900, resizable from 1000×640
+> **Theme:** Premium Dark Forest
 
----
-
-## Inhaltsverzeichnis
-
-1. [Architektur-Übersicht](#1-architektur-übersicht)
-2. [Core vs. Extended — Systematische Klassifizierung](#2-core-vs-extended)
-3. [Globale Konstanten & Theme](#3-globale-konstanten--theme)
-4. [Styled Widgets (Utility-Funktionen)](#4-styled-widgets-utility-funktionen)
-5. [Graphics Items — Map-Rendering-Schicht](#5-graphics-items--map-rendering-schicht)
-6. [Scene & View — Map-Kontrolle](#6-scene--view--map-kontrolle)
-7. [UI-Panels (Rechte Spalte)](#7-ui-panels-rechte-spalte)
-8. [ZooMainWindow — Signal-Routing & Tick-Loop](#8-zoommainwindow--signal-routing--tick-loop)
-9. [QSS Dark Theme](#9-qss-dark-theme)
-10. [Datenfluss-Diagramm](#10-datenfluss-diagramm)
-11. [Assets-Verzeichnis](#11-assets-verzeichnis)
+This document describes the **structure and the design decisions** of the
+frontend. What exactly is to be built, and why particular conflicts were
+resolved the way they were, is in [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md);
+the diagrams are in [`docs/frontend_class_diagram.md`](docs/frontend_class_diagram.md).
 
 ---
 
-## 1. Architektur-Übersicht
+## Contents
+
+1. [Architecture overview](#1-architecture-overview)
+2. [Layers and responsibilities](#2-layers-and-responsibilities)
+3. [The sprite hierarchy](#3-the-sprite-hierarchy)
+4. [The controller as an enrichment layer](#4-the-controller-as-an-enrichment-layer)
+5. [Render loop and timing](#5-render-loop-and-timing)
+6. [Map: scene, view, lighting](#6-map-scene-view-lighting)
+7. [Panels of the right column](#7-panels-of-the-right-column)
+8. [Header and footer bar](#8-header-and-footer-bar)
+9. [Constants and theme](#9-constants-and-theme)
+10. [Data flow](#10-data-flow)
+11. [Design decisions in retrospect](#11-design-decisions-in-retrospect)
+
+---
+
+## 1. Architecture overview
 
 ```
-QApplication
-└── ZooMainWindow (QMainWindow, 1400×900, fixed)
-    ├── QMenuBar (Datei → Speichern/Laden/Event-Kalender/Beenden)
-    ├── QToolBar (Tag, Pause, Speed, Öffnen/Schließen, Budget, Rep, Happiness)
-    ├── QStatusBar (Bereit, Tiere, Besucher, Gehege)
-    ├── Central QGridLayout
-    │   ├── [0,0] ZooGraphicsView (QGraphicsView, 800×600 Map)
-    │   │         └── ZooScene (QGraphicsScene)
-    │   │              ├── EnclosureItem[] (Gehege-Rechtecke)
-    │   │              ├── AsciiLionSprite[] (ASCII-Löwen-Pixmap)
-    │   │              ├── AnimalSprite[] (Giraffe/Pinguin-Kreise)
-    │   │              ├── VisitorSprite[] (Besucher-Punkte)
-    │   │              ├── DecoSprite[] (Dekorations-Emojis)
-    │   │              └── LightingOverlay (Tag/Nacht)
-    │   ├── [0,1] QTabWidget (Aktionen | Shop | Upgrades)
-    │   ├── [1,1] EntityInfoPanel (QGroupBox — Tier-Info)
-    │   ├── [2,1] ChatlogWidget (QTextEdit — Nachrichten-Log)
-    │   └── [3,1] EventBanner (QFrame — Event-Ankündigung)
-    ├── QTimer(100ms) → _tick() → engine.tick() → get_game_state()
-    └── launch_frontend() → app.setStyleSheet() → QSS-Theme
+QApplication  (QSS dark theme from main._get_qss())
+└── ZooMainWindow (QMainWindow, opens at 1400×900, minimum 1000×640)
+    ├── QMenuBar ........................ Datei → Beenden  (File → Quit)
+    ├── Top bar (QFrame, 30 px)
+    │     📅 Tag · 🕐 Phase+Uhrzeit · ⏸ Pause · 🏃 Speed
+    │     ····· 💰 Budget · 💵 Einnahmen · 💸 Ausgaben · 🎫 Ticket · 🔓 Status
+    ├── Body (QSplitter, horizontal, not collapsible)
+    │   ├── ZooGraphicsView (resizable, min 420×320) ── ZooScene (800×600)
+    │   │        ├── EnclosureItem[]      biome rectangles with occupancy/cleanliness
+    │   │        ├── AmbientParticle[30]  floating dust motes
+    │   │        ├── AsciiLionSprite[]    ┐
+    │   │        ├── AsciiGiraffeSprite[] ├ ASCII pixmaps
+    │   │        ├── AsciiPenguinSprite[] ┘
+    │   │        ├── AnimalSprite[]       circle fallback for new species
+    │   │        ├── VisitorSprite[]      5 px dots
+    │   │        └── Lighting overlay     day-phase tint
+    │   │   Overlays above the map (no layout space):
+    │   │        ├── AlertBanner          WARNING/ERROR, visible for 60 frames
+    │   │        └── Score popup          action confirmation, 2 s fade-out
+    │   └── Right column (340–460 px)
+    │       ├── QTabWidget: 🎮 Aktionen | 🐾 Tiere | 🛒 Shop | 📊 Statistik
+    │       │        (each tab in a transparent QScrollArea)
+    │       │        └── Statistik: metric selector + TrendChart + table
+    │       ├── EntityInfoPanel   animal OR enclosure form
+    │       └── ChatlogWidget     colour-coded message feed, filterable
+    ├── Bottom bar (QFrame, 30 px)
+    │     Statuszeile ····· 🐾 Tiere · 👥 Besucher · 🏠 Gehege · 📋 letzte Aktion
+    └── QTimer(100 ms) → _tick() → advance_tick() → get_state() → render
 ```
 
 ---
 
-## 2. Core vs. Extended — Systematische Klassifizierung
+## 2. Layers and responsibilities
 
-### 🔴 CORE (MVP — unverzichtbar für lauffähigen Prototyp)
-
-| Komponente | Typ | Begründung |
+| Layer | Package | Rule |
 |---|---|---|
-| **ZooMainWindow** | Klasse | Das Fenster selbst — ohne es keine UI |
-| **ZooScene** | Klasse | Die 2D-Map — Kern des Spiels |
-| **ZooGraphicsView** | Klasse | Zoom/Pan/Drag — Map-Interaktion |
-| **AnimalSprite** | Klasse | Anzeige von Giraffe & Pinguin als farbige Kreise |
-| **EnclosureItem** | Klasse | Gehege-Rechtecke mit Biome-Farbe & Level-Label |
-| **VisitorSprite** | Klasse | Besucher als farbige 5px-Punkte |
-| **ActionPanel** | Widget | "Alle füttern", "Ausgewähltes füttern", "Heilen", "Reinigen" |
-| **ChatlogWidget** | Widget | Nachrichten-Feed (color-coded) |
-| **EntityInfoPanel** (Basis) | Widget | Name, HP, Hunger, Wohlbefinden (ProgressBars) |
-| **ShopPanel** (Food + Animals + Ticket) | Widget | Kern-Shop: Futter kaufen, Tiere kaufen, Ticketpreis |
-| **ToolBar** (Budget, Pause, Speed) | Widget | Simulation-Steuerung |
-| **StatusBar** (Tiere/Besucher/Gehege) | Widget | Status-Anzeige |
-| **QTimer(100ms) Polling-Loop** | Mechanik | Treibt den Tick→Render→Poll-Zyklus |
-| **`_dispatch()` (Action-Routing)** | Methode | Zentraler Hub: Button → engine.execute_action() |
-| **`_update_sprites()`** | Methode | Sprite-Batching — erstellt/aktualisiert alle Map-Items |
-| **`_update_labels()`** | Methode | Toolbar & StatusBar Labels aktualisieren |
-| **Phase Lighting** `apply_lighting()` | Methode | Tag/Nacht-Farbüberlagerung auf der Map |
-| **QSS Dark Theme** | Styling | Gesamtes visuelles Erscheinungsbild |
+| **Entry point** | `main.py` | The only place that imports `backend` and `db` — and even then locally, inside the engine factory. Builds QApplication, theme, engine, controller, window. |
+| **Core** | `core/` | Window, controller, constants. Not a single widget. |
+| **UI** | `ui/` | Widgets and graphics items, exactly one class per file. Knows only `constants` and the snapshot — never the backend. |
+| **Assets** | `assets/` | Pure data modules (ASCII art). No logic, no Qt imports — which also makes them usable from a console frontend. |
 
-### 🟡 EXTENDED (Phase 2–3 — erweiterte Features)
+The dependency direction is strictly one-way:
 
-| Komponente | Typ | Begründung |
+```
+main.py  →  core/  →  ui/  →  assets/
+   ↓
+backend.SimulationEngine   (imported only here)
+```
+
+---
+
+## 3. The sprite hierarchy
+
+The critical design decision of this module. Previously there were three
+almost identical ASCII sprite classes (~197 lines each, ~95 % duplicated code).
+Today:
+
+The hierarchy as a diagram, including the methods, is in
+[`docs/frontend_class_diagram.md`](docs/frontend_class_diagram.md) §2.
+
+**Template method.** `update_state(x, y, is_dead)` exists exactly once — in
+`AnimalSpriteBase`. It moves the sprite and detects the transition
+alive ↔ dead; *what* the state looks like is decided by the hooks
+`render_alive()` and `render_dead()` of the subclass. A new species therefore
+brings no new state logic with it, only a new appearance.
+
+**Why no `abc.ABC`?** Qt graphics items are sip types with their own
+metaclass; combining them with `ABCMeta` breaks with a
+metaclass conflict. The abstract methods therefore raise
+`NotImplementedError` and are documented as abstract.
+
+**Why callbacks instead of signals?** `QGraphicsItem` is **not** a
+`QObject` in Qt6. `pyqtSignal` cannot be defined on it (error:
+*"EnclosureItem cannot be converted to PyQt6.QtCore.QObject"*). Sprites
+therefore report hover and clicks through registered callbacks.
+
+**Why a pixmap instead of `QGraphicsTextItem`?** ASCII art has to fit into
+100 px of width, which corresponds to roughly 3 pt type — at that size Qt
+renders without anti-aliasing and the outline falls apart. Instead it is
+drawn into a `QImage` at 5–6 pt and scaled down with `SmoothTransformation`.
+The result is cached per (class, colour): two render passes per species
+(alive, dead) for the entire runtime.
+
+---
+
+## 4. The controller as an enrichment layer
+
+`FrontendController` is more than a pass-through. The backend snapshot
+is deliberately lean; so that no widget has to invent data, the
+controller adds exactly two things:
+
+| Addition | Why | How |
 |---|---|---|
-| **AsciiLionSprite** | Klasse | ASCII-Löwe als gerenderter Pixmap-Charakter (Benutzerwunsch) |
-| **`_render_lion_pixmap()`** | Funktion | Rendert ASCII-Art → QPixmap mit SmoothTransformation |
-| **UpgradePanel** | Widget | 6 Gebäude-Upgrades + Gehege-Upgrade + 5 Dekorationen |
-| **EntityInfoPanel** (ASCII-Art) | Widget | Löwen-Art im Info-Panel (species-spezifisch) |
-| **ShopPanel** (Medikamente) | Widget | Medikamenten-Kauf für Heilung |
-| **EventBanner** | Widget | Saisonale Event-Ankündigung (Lichterfest etc.) |
-| **SaveLoadDialog** | QDialog | Speichern/Laden via JSON |
-| **DecoSprite** | Klasse | Dekorations-Emojis (Brunnen, Bäume, Büsche etc.) |
-| **Drag & Drop** (`ZooGraphicsView`) | Mechanik | Tiere zwischen Gehegen ziehen |
-| **`_cycle_speed()`** | Methode | Geschwindigkeits-Zyklus (1×→2×→5×→0.5×) |
-| **`_toggle_open()`** | Methode | Zoo manuell öffnen/schließen |
-| **`_rename_animal()`** | Methode | Tier umbenennen via QInputDialog |
-| **`_show_event_calendar()`** | Methode | Event-Kalender als QMessageBox |
-| **`_load_game()`** | Methode | Spielstand laden |
+| `name` per animal | `animals_on_map` contains no name — otherwise every lion would be called "Löwe" (lion) | one `get_entity_info(id)` per animal, result in the `_name_cache`; animals that disappear drop out of the cache |
+| `enclosures_on_map` | The backend supplies no enclosure list, but does know `cleanliness` and `free_slots` per enclosure id | map geometry from `ENCLOSURE_DEFS` + live values, `occupied = capacity − free_slots` |
 
-### 🟢 SPÄTER HINZUGEFÜGT (Benutzer-Iterationen)
-
-| Komponente | Grund |
-|---|---|
-| **Vektor-basierte Tierbewegung** (in `models/tier.py`) | Realistischere Bewegung: Richtung + Schrittanzahl + Abprallen |
-| **`_LION_CACHE`** (Pixmap-Cache) | Performance: Löwen-Pixmap nur einmal pro Farbe rendern |
-| **`styled_button/label/card`** | Utility-Funktionen für konsistentes Styling |
+In addition it encapsulates error handling: `execute_action()` catches
+`ValueError` (unknown action) and any other exception and returns a
+result dict — including the **original error text**, so that
+integration errors stay visible instead of failing silently.
 
 ---
 
-## 3. Globale Konstanten & Theme
+## 5. Render loop and timing
 
-```python
-# Map-Dimensionen
-MAP_W, MAP_H = 800, 600          # Karten-Größe in Pixeln
-TICK_MS = 100                     # 100ms = 10 FPS Polling-Rate
-
-# Z-Order (Rendering-Schichten)
-Z_ENCLOSURES = 1                  # Gehege-Hintergrund
-Z_DECORATIONS = 2                 # Dekorations-Emojis
-Z_ANIMALS = 4                     # Tiere (Löwe, Giraffe, Pinguin)
-Z_VISITORS = 5                    # Besucher-Punkte
-Z_DRAG = 10                       # Drag-Ghost (beim Ziehen)
-Z_OVERLAY = 9                     # Tag/Nacht-Beleuchtung
-
-# Dark Forest Farbpalette (10 Farben)
-C_BG_DEEP  = "#0d1117"            # Map-Hintergrund
-C_BG_PANEL = "#161b22"            # Panel-Hintergrund
-C_BG_CARD  = "#1c2333"            # Card-Hintergrund
-C_ACCENT   = "#3fb950"            # Grün (Buttons, Fortschritt)
-C_ACCENT2  = "#2ea043"            # Dunkleres Grün (Hover)
-C_GOLD     = "#d2991d"            # Gold (Reputation, Events)
-C_RED      = "#f85149"            # Rot (Tod, Gefahr)
-C_TEXT     = "#e6edf3"            # Heller Text
-C_TEXT_DIM = "#8b949e"            # Gedimmter Text
-C_BORDER   = "#30363d"            # Rahmen-Farbe
-```
-
-**Begründung:** GitHub-Dark-Theme-inspiriert. Kein reines Schwarz — dunkle Blautöne mit Grün als Akzentfarbe für eine "Premium"-Ästhetik ohne Eye-Strain.
-
----
-
-## 4. Styled Widgets — Utility-Funktionen
-
-### `styled_button(text, accent, danger, small)` 🔴 CORE
-**Zweck:** Konsistente Button-Styling-Factory. Vermeidet QSS-Duplizierung.
-- **accent:** Grüner "Call-to-Action"-Button
-- **danger:** Roter "Warnung"-Button  
-- **default:** Neutraler Dark-Button mit Hover-Effekt
-- **small:** Kompaktere Padding-Variante
-
-### `styled_label(text, dim, large, bold, color, size)` 🔴 CORE
-**Zweck:** Konsistente Label-Factory. Alle Labels transparent, kein Border.
-- **dim:** Gedimmte Textfarbe (Beschreibungen)
-- **large:** 18px Schrift (Überschriften)
-- **bold:** Fettdruck
-
-### `styled_card()` 🟡 EXTENDED
-**Zweck:** QFrame mit `QGraphicsDropShadowEffect` (20px Blur, 4px Offset) für "Karten"-Look in Shop- und Upgrade-Panels.
-
----
-
-## 5. Graphics Items — Map-Rendering-Schicht
-
-### `AnimalSprite(QGraphicsEllipseItem)` 🔴 CORE
-**Visuelle Repräsentation: Giraffe & Pinguin**
-
-| Eigenschaft | Wert |
-|---|---|
-| Basis-Klasse | `QGraphicsEllipseItem(0, 0, 18, 18)` |
-| Farbe | `SPECIES_COLORS[spezies]` (#d4a44a / #7986cb) |
-| Label | Erster Buchstabe (G/P) — weiß, fett, 9pt |
-| Position | `setPos(x-9, y-9)` — zentriert |
-| Tod-Zustand | Grau (#30363d) + roter Rand + roter Buchstabe |
-| Events | `hoverEnterEvent`/`hoverLeaveEvent` → `entity_hovered`/`entity_unhovered` Signal |
-
-**Design-Entscheidung:** Kreis mit Buchstabe statt Pixel-Sprite. Minimaler Rendering-Aufwand, sofort erkennbar. Kein externes Asset-Management nötig.
-
----
-
-### `AsciiLionSprite(QGraphicsPixmapItem)` 🟡🟢 EXTENDED + BENUTZER
-**Visuelle Repräsentation: Löwe als vollständige ASCII-Kunst**
-
-| Eigenschaft | Wert |
-|---|---|
-| Basis-Klasse | `QGraphicsPixmapItem` |
-| Pixmap-Quelle | `_render_lion_pixmap("#e8a838")` — golden |
-| Skalierung | ~80×40 Pixel (von ~190×150 native via SmoothTransformation) |
-| Position | `setOffset(-w//2, -h//2)` — zentriert auf Tier-Koordinate |
-| Tod-Zustand | Erneutes Rendern mit Farbe `C_RED` (#f85149) |
-| Events | Identisch zu `AnimalSprite` |
-
-**Rendering-Pipeline (`_render_lion_pixmap`):**
-```
-1. Lade ASCII_LION aus assets/ascii_lion.py
-2. Rendere mit QPainter + QFont("Courier New", 5pt) auf QImage (ARGB32, transparent)
-3. QImage.scaled(80, h, KeepAspectRatio, SmoothTransformation)
-4. QPixmap.fromImage() → Cache in _LION_CACHE dict
-```
-
-**Design-Entscheidung:** Warum Pixmap statt Text-Item?
-- **Text-Item (3pt):** Unleserlich, kein Anti-Aliasing bei Winz-Schriften
-- **Pixmap (5pt→skaliert):** Lesbare native Schrift, dann bilineare Interpolation → saubere Kanten
-- **Cache:** Nur 2 Render-Aufrufe (gold + rot), O(1) pro Farbe
-
----
-
-### `VisitorSprite(QGraphicsEllipseItem)` 🔴 CORE
-**Visuelle Repräsentation: Zoo-Besucher**
-
-| Eigenschaft | Wert |
-|---|---|
-| Basis-Klasse | `QGraphicsEllipseItem(0, 0, 5, 5)` |
-| Farbe | Zufällig aus 5 Pastell-Farben |
-| Position | `setPos(x-2, y-2)` — zentriert |
-| Kein Hover | Besucher sind nicht interaktiv |
-
----
-
-### `DecoSprite(QGraphicsTextItem)` 🟡 EXTENDED
-**Visuelle Repräsentation: Gekaufte Dekorationen**
-
-| Slot | Emoji | Position |
-|---|---|---|
-| `brunnen_mitte` | ⛲ | (350, 220) |
-| `baeume_eingang` | 🌳 | (250, 30) |
-| `buesche_pfad` | 🌿 | (500, 30) |
-| `blumenfeld_gehege` | 🌸 | (200, 230) |
-| `laternen_pfad` | 🏮 | (350, 50) |
-
-22pt Schrift, nur sichtbar wenn `zoo.decoration_slots[slot_id] == True`.
-
----
-
-### `EnclosureItem(QGraphicsRectItem)` 🔴 CORE
-**Visuelle Repräsentation: Gehege**
-
-| Eigenschaft | Wert |
-|---|---|
-| Füllung | Halbtransparente Biome-Farbe (Savanne: braun, Eis: blau) |
-| Rahmen | Gestrichelt, `C_BORDER`-Farbe |
-| Label | "Savanne · Lv.1" — 9pt, gedimmt, zentriert unten |
-| Überfüllung | Roter 3px-Rahmen wenn `current_count > max_capacity` |
-
----
-
-## 6. Scene & View — Map-Kontrolle
-
-### `ZooScene(QGraphicsScene)` 🔴 CORE
-- **Größe:** 800×600 — `sceneRect(0,0,800,600)`
-- **Hintergrund:** `C_BG_DEEP` (#0d1117)
-- **Entity-Dictionaries:** `animals: Dict[str, QGraphicsItem]`, `visitors`, `enclosures`, `decorations`
-- **Lighting Overlay:** `QGraphicsRectItem(0,0,800,600)` auf Z_OVERLAY — Tag/Nacht-Tönung
-- **`apply_lighting(phase)`:** Setzt semi-transparente Füllung basierend auf `PHASE_LIGHTING`
-
-### `ZooGraphicsView(QGraphicsView)` 🔴 CORE (+ 🟡 Drag & Drop)
-- **Signale:** `entity_hovered(str)`, `entity_unhovered()`, `map_clicked(float,float)`, `drop_requested(str,float,float)`
-- **Anti-Aliasing:** Aktiviert
-- **Pan:** `ScrollHandDrag` (mittlere Maustaste)
-- **Zoom:** `wheelEvent` — 15% pro Stufe
-- **Drag & Drop:**
-  - `mousePressEvent` → `itemAt(pos)` → `isinstance(AnimalSprite, AsciiLionSprite)` → `_start_drag()`
-  - `mouseMoveEvent` → Ghost-Sprite folgt Maus
-  - `mouseReleaseEvent` → `drop_requested.emit(tier_id, x, y)`
-  - Ghost: `QGraphicsEllipseItem` mit 50% Opazität, Farbe vom Original-Sprite
-
----
-
-## 7. UI-Panels (Rechte Spalte)
-
-### `ActionPanel(QWidget)` 🔴 CORE
-**7 Aktions-Buttons in vertikaler Liste:**
-
-| Button | Aktion | Aktivierungs-Bedingung |
-|---|---|---|
-| "Alle Tiere füttern" | `feed_all` | Inventar hat mindestens 1 Food-Item |
-| "Ausgewähltes füttern" | `feed_one` | Tier ausgewählt |
-| "Ausgewähltes heilen" | `heal` | Tier ausgewählt + Medikamente > 0 |
-| "Gehege reinigen" | `clean` | Gehege ausgewählt |
-| "Einäschern starten" | `start_cremation` | Leichen vorhanden |
-| "Urne beerdigen" | `bury_urn` | Urnen vorhanden |
-| "Tier umbenennen" | `rename_animal` | Tier ausgewählt |
-
-**`update_state(state, sel_a, sel_e)`:** Enabler/Disabler je nach Inventar/Selektion.
-
----
-
-### `ShopPanel(QWidget)` 🔴 CORE (Food/Animals/Ticket) + 🟡 EXTENDED (Meds)
-**4 Karten-Sektionen:**
-
-**🍖 Futter kaufen** (Core)
-- QComboBox: 5 Futtertypen mit Preis-Angabe
-- QSpinBox: 1–100 Menge
-- Live-Preisberechnung: `Preis/Stk × Menge`
-- Inventar-Anzeige unter dem Kauf-Button
-
-**🦁 Tiere kaufen** (Core)
-- QComboBox: Löwe (8.000€) / Giraffe (5.000€) / Pinguin (3.000€)
-- QCheckBox: "Baby (50% billiger)"
-- Live-Preis: Passt sich bei Baby-Checkbox an
-
-**💊 Medikamente** (Extended)
-- QSpinBox: 1–50
-- Preis: 300€/Stk
-
-**🎫 Ticketpreis** (Core)
-- QSlider: 1–100€
-- Live-Label-Anzeige
-
----
-
-### `UpgradePanel(QWidget)` 🟡 EXTENDED
-**3 Sektionen:**
-
-**Gebäude-Upgrades** (6 Karten)
-- Landschaftsverschönerung (5000€), Beleuchtung (4000€), Futterlager (6000€), Krematorium (8000€), Friedhof (5000€), Restaurant (12000€)
-- Jede Karte: Name, Beschreibung, Kosten, Status ("Gekauft"/"Nicht gekauft"), Kauf-Button
-
-**Gehege-Upgrade** (1 Karte)
-- QComboBox für Gehege-Auswahl
-- Kosten: 10000€, Gated by Reputation ≥ 30
-
-**Dekorationen** (5 Karten)
-- Brunnen, Bäume, Büsche, Blumenfeld, Laternen
-- Status "Gebaut"/"Nicht gebaut" + Bau-Button
-
----
-
-### `EntityInfoPanel(QGroupBox)` 🔴 CORE (Statistiken) + 🟡 EXTENDED (ASCII-Art)
-**Form-Layout mit 6 Zeilen:**
-
-| Zeile | Widget | Beschreibung |
-|---|---|---|
-| Name · Spezies | QLabel | z.B. "Simba · Löwe" |
-| Alter · Stadium | QLabel | z.B. "14 Tage · Erwachsen" |
-| HP | QProgressBar | 0–100, grün→gelb→rot |
-| Hunger | QProgressBar | Inverted, 100=voll |
-| Wohlbefinden | QProgressBar | 0–100, rot→gelb→grün |
-| Effekte | QLabel | z.B. "Hungernd Gestresst" |
-| Biome | QLabel | Savanne / Eis / Aquarium |
-| ASCII-Art (nur Löwe) | QLabel | `ASCII_LION_SMALL`, 6px Monospace, golden |
-
----
-
-### `ChatlogWidget(QWidget)` 🔴 CORE
-- `QTextEdit` readOnly, 500 Nachrichten Maximum, 200px Höhe
-- `append_messages(msgs)`: HTML-formatierte Einträge mit timestamp + farbcodiertem Typ
-- **Farben:** INFO=grau, WARNUNG=gelb, KRITISCH=rot, ERFOLG=grün, EVENT=gold
-- Auto-Scroll zum Ende via `ensureCursorVisible()`
-
----
-
-### `EventBanner(QFrame)` 🟡 EXTENDED
-- Standardmäßig versteckt (`hide()`)
-- Zeigt Event-Name + verbleibende Tage während saisonaler Events
-- Style: `#1a2a0a` Hintergrund, goldener 2px Rahmen, abgerundet
-
----
-
-### `SaveLoadDialog(QDialog)` 🟡 EXTENDED
-- **Save-Modus:** Editierbare QComboBox mit Dateinamen-Vorschlägen
-- **Load-Modus:** QListWidget aller `.json`-Dateien im Verzeichnis
-- Speichert `engine.get_game_state()` via `DBManager.save_game()`
-
----
-
-## 8. ZooMainWindow — Signal-Routing & Tick-Loop
-
-### Aufbau (`_build_ui()`) 🔴 CORE
-```
-QGridLayout (4 Zeilen × 2 Spalten)
-├── [0,0] ZooGraphicsView  (rowspan=4, stretch=3)
-├── [0,1] QTabWidget       (380–420px breit)
-├── [1,1] EntityInfoPanel
-├── [2,1] ChatlogWidget
-└── [3,1] EventBanner
-```
-
-### Signal-Verkabelung (`_connect_signals()`) 🔴 CORE
-Alle Panel-Signale werden via Lambda an `self._dispatch(action, **kwargs)` geroutet:
-```
-ActionPanel.feed_all    → _dispatch("feed_all")
-ShopPanel.buy_food      → _dispatch("buy_food", typ, menge)
-UpgradePanel.buy_upgrade → _dispatch("buy_upgrade", upgrade_name)
-...etc.
-```
-
-### Tick-Loop (`_tick()`) 🔴 CORE
 ```python
 def _tick(self):
-    if engine.running and not engine.paused:
-        engine.tick()                    # 1. Berechne einen Simulationsschritt
-    state = engine.get_game_state()      # 2. Hole vollständigen Snapshot
-    self._update_sprites(state)          # 3. Aktualisiere alle Map-Sprites
-    self._update_labels(state)           # 4. Aktualisiere Toolbar/StatusBar
-    self._update_panels(state)           # 5. Aktualisiere ActionPanel/UpgradePanel
-    self._update_event(state)            # 6. Event-Banner prüfen
-    msgs = engine.get_chat_messages()    # 7. Hole neue Chat-Nachrichten
-    if msgs: self.chatlog.append_messages(msgs)
+    self._controller.advance_tick()      # 1. advance the simulation
+    state = self._controller.get_state() # 2. enriched snapshot
+    if not state: return                 #    (no backend → render nothing)
+    self._state = state
+    self._update_sprites(state)          # 3. map
+    self._update_labels(state)           # 4. chips + statistics on day change
+    self._update_panels(state)           # 5. actions + shop
+    msgs = self._controller.get_chat_messages()
+    if msgs: self._chatlog.append_messages(msgs, tick)   # 6. messages
 ```
 
-### `_update_sprites(state)` 🔴 CORE + 🟡 (Löwen-Check)
-**Sprite-Batching-Mechanik:**
-1. **Tiere:** Iteriere `state["tiere_auf_map"]` → erstelle `AsciiLionSprite` für Löwen, `AnimalSprite` für andere. Aktualisiere via `update_pos(x, y, is_dead)`. Entferne tote Sprites.
-2. **Besucher:** `VisitorSprite` — gleiches Muster
-3. **Gehege:** `EnclosureItem` — nur bei Änderungen neu erstellen
-4. **Dekorationen:** `DecoSprite` — konditional auf `decoration_slots`
-5. **Lighting:** `scene.apply_lighting(phase)`
+**What drives the simulation?** The backend brings its own
+background thread with it (`engine.start()`). The frontend does
+**not** use it: running in parallel with the Qt loop, it would tick twice and
+rendering and simulation would drift apart. Instead the
+controller calls `tick()` itself — deterministically and in step with the
+window.
+
+**Speed** is therefore a frontend gate: `advance_tick()` carries
+a fractional budget and computes `speed` ticks per frame (at 0.5×,
+one every second frame). **Pause** sets the same gate to zero.
+
+**Statistics only on a day change.** `get_stats()` requires a
+database access; the Statistik tab is therefore only rebuilt when
+the day number changes — not ten times a second.
 
 ---
 
-## 9. QSS Dark Theme
+## 6. Map: scene, view, lighting
 
-~100 Zeilen CSS-in-Python. Vollständiges Styling für:
-- `QMainWindow`, `QToolBar`, `QStatusBar`
-- `QPushButton` (default/hover/disabled/accent/danger)
-- `QComboBox`, `QSpinBox`, `QSlider`
-- `QProgressBar`, `QGroupBox`, `QTabWidget/QTabBar`
-- `QTextEdit`, `QScrollArea/QScrollBar`
-- `QMenuBar/QMenu`, `QCheckBox`, `QDialog`, `QListWidget`
+**`ZooScene`** holds three dictionaries (`_animals`, `_visitors`,
+`_enclosures`), each keyed by backend id. `update_entities()` is a
+three-phase batching: update existing sprites, create missing ones,
+remove orphaned ones. A frame therefore costs only as much as has really
+changed.
 
-**Design-Prinzip:** Alle Styles über QSS, keine inline-Styles. Zentrale Verwaltung in `launch_frontend()`.
+**The background** is a 40 px dot grid, generated as a tiled `QBrush` from a
+`QImage` — map aesthetics without external assets.
 
----
+**Lighting.** The backend supplies `system.time_of_day` with four real
+phases (`MORNING`, `NOON`, `EVENING`, `NIGHT`). Each phase has its own
+RGBA tint in `constants.PHASE_LIGHTING`:
 
-## 10. Datenfluss-Diagramm
+| Phase | Tint | Effect |
+|---|---|---|
+| `MORNING` | `(255, 190, 120, 28)` | warm, low-angle light |
+| `NOON` | `(0, 0, 0, 0)` | full daylight, no tint |
+| `EVENING` | `(255, 120, 60, 45)` | orange evening |
+| `NIGHT` | `(10, 20, 60, 130)` | deep blue |
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    FRONTEND (PyQt6)                          │
-│                                                              │
-│  QTimer(100ms)                                               │
-│      │                                                       │
-│      ▼                                                       │
-│  ZooMainWindow._tick()                                       │
-│      │                                                       │
-│      ├─ engine.tick()           ──── Backend berechnet       │
-│      ├─ engine.get_game_state() ──── Dict mit allen Daten    │
-│      │                                                       │
-│      ├─ _update_sprites(state)                               │
-│      │   ├─ AsciiLionSprite (Löwe)                           │
-│      │   ├─ AnimalSprite (Giraffe/Pinguin)                   │
-│      │   ├─ VisitorSprite (Besucher)                         │
-│      │   ├─ EnclosureItem (Gehege)                           │
-│      │   ├─ DecoSprite (Dekorationen)                        │
-│      │   └─ apply_lighting (Tag/Nacht)                       │
-│      │                                                       │
-│      ├─ _update_labels(state)                                │
-│      │   ├─ Toolbar: Tag, Budget, Rep, Happiness             │
-│      │   └─ StatusBar: Tiere, Besucher, Gehege               │
-│      │                                                       │
-│      └─ _update_panels(state)                                │
-│          ├─ ActionPanel.update_state()                       │
-│          └─ UpgradePanel.update_state()                      │
-│                                                              │
-│  User-Interaktion                                            │
-│      │                                                       │
-│      ├─ Button-Click → ActionPanel/ShopPanel/UpgradePanel    │
-│      │   └─ _dispatch(action, **kwargs)                      │
-│      │       └─ engine.execute_action() ──── Backend         │
-│      │                                                       │
-│      └─ Map-Interaktion → ZooGraphicsView                    │
-│          ├─ Hover → entity_hovered(tier_id)                  │
-│          │   └─ EntityInfoPanel.show_data()                  │
-│          ├─ Click → map_clicked(x,y)                         │
-│          │   └─ Gehege-Selektion                             │
-│          └─ Drag → drop_requested(tier_id,x,y)               │
-│              └─ engine.execute_action("drop_animal")         │
-└─────────────────────────────────────────────────────────────┘
-```
+The transition runs as an 800 ms `QVariantAnimation` **over the QColor itself** —
+Qt interpolates the alpha channel along with it, so that colour and strength
+cross-fade at the same time. (`QPropertyAnimation` is ruled out: a
+`QGraphicsRectItem` is not a `QObject` and has no animatable
+properties.)
+
+**`ZooGraphicsView`** adds mouse-wheel zoom (15 % per step, clamped to
+0.3×–3.0×), panning by dragging (`ScrollHandDrag`, set in the constructor — effective as soon as the scene is larger than the visible viewport) and the
+click on empty space (`map_clicked`), which clears the selection.
 
 ---
 
-## 11. Assets-Verzeichnis
+## 7. Panels of the right column
 
-```
-assets/
-├── __init__.py            ← Leeres Package-Marker
-├── ascii_lion.py          ← ASCII_LION (40 Zeilen) — Willkommens-Banner + Map-Pixmap-Quelle
-└── ascii_lion_small.py    ← ASCII_LION_SMALL (25 Zeilen) — EntityInfoPanel-Kompaktversion
-```
+### ActionPanel
+Four buttons — exactly the four free backend actions `feed_all`,
+`feed_one`, `heal`, `clean`. The enabled state follows the snapshot:
+food in stock, animal selected and alive, enclosure selected. Every
+disabled button explains itself via a tooltip; a hint line names the
+selected enclosure.
 
-**Verwendung:**
-- `ascii_lion.py` → `main.py` (CLI-Splash) + `frontend/main_window.py` (Pixmap-Rendering für Map)
-- `ascii_lion_small.py` → `frontend/main_window.py` (EntityInfoPanel bei Löwen-Hover)
+### ShopPanel
+Two sections with the **real** backend prices (meat 8 €, plants
+5 €, fish 6 €; lion 900 €, giraffe 700 €, penguin 400 €). When buying an animal
+all three kwargs are sent (`species`, `name`, `enclosure_id`), otherwise
+every animal ends up in the first enclosure and is called "New lion". Buy buttons
+disable themselves as soon as the budget is insufficient — the rejection happens
+in the UI before the backend has to report it. The stock display shows all four
+resources including medicine (display only, no sale).
+
+### StatsPanel
+Table of the completed game days from `get_stats()`: Tag, Besucher,
+Gewinn (green/red), Ø Tierwohl, Reputation, Todesfälle (day, visitors,
+profit, average welfare, reputation, deaths); above it a
+summary of the last day with income, expenses and average
+satisfaction. Reputation and satisfaction appear **only here** — the
+live snapshot does not have them. Without a persistence layer, a hint text is
+shown instead of an empty table.
+
+### EntityInfoPanel
+Two mutually exclusive forms plus a placeholder:
+
+* **Tier** (animal) — Name · Art, Alter, Status (lebt/verstorben), HP, Hunger,
+  Wohlbefinden, Statuseffekte (name · species, age, status, HP, hunger, welfare, status effects).
+* **Gehege** (enclosure) — Name, Biom, Belegung, Sauberkeit (name, biome, occupancy, cleanliness).
+
+The hunger bar follows the backend semantics **0 = full, 100 =
+starving**: the colour scale is inverted, a full bar is red.
+
+### ChatlogWidget
+Colour-coded feed, capped at 500 entries. The rendered HTML lines
+are buffered so that the capping does not destroy the formatting.
+Timestamps: 480 ticks = one day = 24 h, so three simulated minutes per
+tick → `[T3 07:30]`. Since the backend issues its logger calls **without**
+`tick_count`, the widget stamps with the tick of the frame in which
+the message arrived — the feed is drained every frame anyway.
 
 ---
 
-*Dokument erstellt am 6. August 2026 — Vollständige Frontend-Architekturdokumentation*
+## 8. Header and footer bar
+
+Instead of `QToolBar`/`QStatusBar`, two custom `QFrame`s with `StatusChip`s —
+pills in a glass-morphism style whose value and accent colour are updated
+every frame. Colour coding: budget green from 5 000 €, gold from 1 000 €,
+otherwise red; animals gold as soon as one animal is dead, red when none is
+alive any more; zoo status green/red with a changing lock symbol.
+
+Every chip shows a value that the backend really supplies. The former
+chips "⭐ Reputation" and "😊 Happiness" were removed: the corresponding
+fields do not exist in the live snapshot and were permanently at 0.
+
+---
+
+## 9. Constants and theme
+
+`core/constants.py` is the single source for colours, dimensions, prices,
+enclosure geometry and day phases. Every value that mirrors a backend fact
+names its source in a comment (`TICKS_PER_DAY` mirrors
+`backend.core.engine.TICKS_PER_DAY`, `FOOD_PRICES` mirrors
+`Inventory.FOOD_PRICES`, …) — mirrored rather than imported, so that the
+layer separation holds.
+
+Colour palette (GitHub-Dark-inspired, no pure black):
+
+```python
+C_BG_DEEP  = "#0d1117"   C_ACCENT   = "#3fb950"   C_TEXT     = "#e6edf3"
+C_BG_PANEL = "#161b22"   C_ACCENT2  = "#2ea043"   C_TEXT_DIM = "#8b949e"
+C_BG_CARD  = "#1c2333"   C_GOLD     = "#d2991d"   C_BORDER   = "#30363d"
+                         C_RED      = "#f85149"
+```
+
+The QSS in `main._get_qss()` covers all widget types in use
+(buttons, inputs, progress bars, tabs, tables, menus, tooltips).
+Widgets largely carry no colour values of their own. There are exceptions where
+the global cascade does not take hold reliably — `StatusChip`, the
+progress bars in `EntityInfoPanel` and above all `styled_button()`
+set complete inline QSS. The reason is a concrete bug — property
+selectors such as `QPushButton[accent="true"]` only take effect after
+`style().unpolish()/polish()`; without that, hover, pressed and
+disabled states had no effect. Self-contained inline styles avoid the
+problem reliably.
+
+Besides the two factories, `styled_widgets` also contains `panel_layout()`:
+the four lines with which every panel of the right column begins
+(`WA_StyledBackground`, vertical layout, spacing, margin). Without that
+attribute Qt ignores the background from the stylesheet — a detail that
+would have to be right individually in four files and now lives in one place.
+
+---
+
+## 10. Data flow
+
+```
+┌──────────────────────── FRONTEND (PyQt6) ────────────────────────┐
+│  QTimer(100 ms)                                                  │
+│      ▼                                                           │
+│  ZooMainWindow._tick()                                           │
+│      ├─ controller.advance_tick() ──► engine.tick() × speed      │
+│      ├─ controller.get_state()    ──► engine.get_game_state()    │
+│      │      └─ enrichment: names (get_entity_info per animal)    │
+│      │                    enclosures (get_entity_info per encl.) │
+│      ├─ _update_sprites()  → ZooScene.update_entities()          │
+│      │                       ZooScene.apply_lighting(phase)      │
+│      ├─ _update_labels()   → 11 StatusChips                      │
+│      │                       on day change: get_stats()          │
+│      ├─ _update_panels()   → ActionPanel / ShopPanel             │
+│      └─ get_chat_messages()→ ChatlogWidget                       │
+│                                                                  │
+│  User interaction                                                │
+│      ├─ button  → panel signal → _dispatch(action, **kwargs)     │
+│      │                            └─► engine.execute_action()    │
+│      ├─ hover   → sprite callback → get_entity_info(animal_id)   │
+│      │                               └─► EntityInfoPanel         │
+│      └─ click   → EnclosureItem callback or map_clicked          │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 11. Design decisions in retrospect
+
+| Decision | Alternative | Why this way |
+|---|---|---|
+| Modular file structure (25 classes, 25 files) | one large `main_window.py` | SRP, parallel work, assessment criterion "eine Aufgabe, eine Datei" (one task, one file) |
+| Template method in `AnimalSpriteBase` | `if species == …` in the scene | new species without new logic; the dead behaviour exists exactly once |
+| Callbacks instead of signals for sprites | `pyqtSignal` | `QGraphicsItem` is not a `QObject` in Qt6 |
+| Pixmap rendering with a cache | `QGraphicsTextItem` | legible edges at 100 px width; only 2 render passes per species |
+| Enrichment in the controller | every widget asks for itself | one backend contact surface, one cache, no repeated queries |
+| The frontend drives `tick()` | `engine.start()` thread | no double ticking, deterministic frames, pause/speed controllable |
+| Only show metrics where data exists | show a placeholder "0" | an interface that shows 0 although nobody knows the value is worse than one that shows the value where it comes into being |
+| Pass the backend error text through | a generic message | "Fehler bei Aktion" (action failed) is not diagnosable; the `TypeError` in `buy_animal` only became visible this way |
+| Custom header/footer bar | `QToolBar`/`QStatusBar` | native widgets break out of the dark theme |
+| Alert banner as an overlay above the map | a row in the right column | the column already demanded 894 px of height — a banner that only appears occasionally must not permanently take up 36 px of it. As a child of the map it has pixel geometry and follows every resize via `ZooGraphicsView.resized` |
+| Inventory list as its own tab | only clicking the sprite | the backend puts all animals on the same coordinate; hitting an individual sprite is a matter of luck, hitting a table row never is |
+| Keyboard shortcuts from the same table as the help text | two separate lists | a key cannot exist undocumented, and a documented key cannot be missing |
+| Dead code removed rather than kept | "might come in handy later" | an unused variant gets dragged along in every refactoring and thought through on every read; what is meant to come later is in `docs/IMPLEMENTATION_PLAN.md` §5 |
+| Every tab in a **transparent, frameless** `QScrollArea` | panels without a scroll area | without it the tallest tab (Shop, 490 px) sets the minimum height of the entire window. A standard `QScrollArea` paints a white box over the `QTabWidget::pane` background; `NoFrame` + a transparent stylesheet + `setAutoFillBackground(False)` solve that — see CHANGELOG |

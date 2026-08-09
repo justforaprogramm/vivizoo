@@ -7,6 +7,8 @@ is fully wired so that altering the weather has an observable effect without
 any structural change.
 
 The possible weathers are the values in :attr:`EnvironmentFactor.WEATHERS`.
+
+Part of the vivizoo project. Module owner: Benjamin (backend).
 """
 
 from __future__ import annotations
